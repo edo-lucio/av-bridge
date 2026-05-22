@@ -1,0 +1,356 @@
+% Enriched Results chapter generated from the av-bridge fgw result CSV files.
+% Required packages in the main document preamble:
+%   \usepackage{booktabs}
+%   \usepackage{graphicx}
+%   \usepackage{amsmath}
+%   \usepackage{float}      % optional
+%   \usepackage{subcaption} % optional, not required here
+%
+% This chapter assumes the figure files are available under ./figures/.
+\chapter{Results}
+\label{ch:results}
+
+\section{Evaluation protocol and reading guide}
+\label{sec:results-protocol}
+In this section we present the results of our experiments.
+We first report  pure Gromov--Wasserstein (Pure-GW), which receives no supervisised signals at all. We then ask whether the semantic information contained in captions can improve the Gromov-Wasserstein objective, first through a direct caption-cost Fused Gromov--Wasserstein (FGW) objective and then through a transitive construction that aligns image to audio embeddings through the composition of the audio-text and image-text alignment modules. 
+
+\hl{Unless stated otherwise, the canonical image-audio pair is CLIP-large $\rightarrow$ CLAP-unfused with $n=400$ aligned examples and $K_{\mathrm{cl}}=15$ clusters for image--audio cluster metrics. Encoder-grid analyses are separated into two regimes. The \emph{text-grounded} regime uses CLIP image encoders and CLAP audio encoders. The \emph{pure-unimodal} regime uses DINOv2 or MAE image encoders with MERT audio encoders. Mixed regimes are reported only when needed to interpret encoder effects.}
+
+\section{Geometry-only alignment: Pure-GW}
+\label{sec:results-puregw}
+
+Pure-GW is the strict no-signal baseline. The method aligns only the intra-modal distance matrix of the image embeddings with the intra-modal distance matrix of the audio embeddings. Because it uses neither captions nor paired image--audio anchors, any success must come from shared relational structure between the two embedding spaces.
+
+\begin{table}[t]
+\centering
+\setlength{\tabcolsep}{4pt}
+\small
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Encoder pair & $R@10\uparrow$ & Cat@10 $\uparrow$ & Routes/15 $\uparrow$ & AMI $\uparrow$ & Pearson $r\uparrow$ \\
+\midrule
+CLIP-L $\times$ CLAP-Unfused  & 0.067 & 0.170 & 0.133 & 0.291 & 0.564 \\
+DINOv2-L $\times$ MERT-330m   & 0.038 & 0.065 & 0.067 & 0.132 & 0.656 \\
+\bottomrule
+\end{tabular}
+\caption{Pure entropic Gromov-Wasserstein across two reference
+encoder regimes.}
+\label{tab:gw-regimes}
+\end{table}
+
+Table~\ref{tab:gw-regime} reports the Pure-GW results across the two models' regimes. The geometry-only plan preserves structure much better than it recovers exact pairs. In the text-grounded regime, mean R@10 is only $0.067$, but mean Pearson distance correlation is $0.564$. In the pure-unimodal regime, R@10 is even lower on average ($0.038$), while mean Pearson correlation is slightly higher ($0.656$). A similar trend shows in the Cat@10 and Routes/15. The Gromov-Wasserstein optimal transport objective only optimizes for keeping the geometry of the two spaces as consistent as possible. However, in doing so, it finds \emph{any} permutation that minimizes the objective, completely destroying semantics. 
+Interestingly, the behavior appears to be the same in both the text-grounded regime and pure-unimodal. 
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/unsup_R10_aggregate.png}
+\caption{Pure-GW R@10 across encoder pairs. The heatmap confirms that no fully unsupervised geometry-only model pair achieves strong exact-pair retrieval.}
+\label{fig:unsup-r10-heatmap-enriched}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\textwidth]{figures/cross_modal_pearson_scatter.png}
+\caption{Pairwise-distance preservation for the canonical CLIP-large $\rightarrow$ CLAP-unfused pair. Pure-GW has the strongest Pearson correlation ($r=0.672$) among the non-direct methods, even though it has the weakest exact-pair retrieval.}
+\label{fig:pairwise-scatter-enriched}
+\end{figure}
+
+Figure~\ref{fig:unsup-r10-heatmap-enriched} shows that the low R@10 is not an artifact of a single encoder pair. Figure~\ref{fig:pairwise-scatter-enriched} shows why the Pure-GW result is still informative: its mapped audio partners preserve the source distance geometry better than the caption-based baselines. The correct interpretation is that visual and audio embeddings share a coarse global organization. The incorrect interpretation would be to conclude that Pure-GW has learned semantic image--audio matching. The next section makes this distinction explicit.
+
+\section{Injecting semantics through caption-cost FGW}
+\label{sec:results-caption-cost}
+
+The previous experiments have shown how optimizing only for structure alignment does not incur in meaningful semantic matches.
+In this experiment we regularize the Gromov-Wasserstein objective with a caption cost matrix, as described in \ref{sec:res-d}.  
+
+\begin{table}[!ht]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}ll ccccc@{}}
+\toprule
+Pair & $\alpha$ & $R@10$ & Cat@10 & Rt/15 & AMI & $r$ \\
+\midrule
+\multirow{5}{*}{\shortstack[l]{CLIP-L/14 $\times$\\CLAP-HTSAT-unfused}}
+  & 0.0 & 0.205 & 0.182 & 0.200 & 0.174 & 0.258 \\
+  & 0.3 & 0.220 & 0.191 & \textbf{0.533} & 0.093 & 0.198 \\
+  & 0.5 & \textbf{0.228} & \textbf{0.192} & 0.533 & 0.107 & 0.310 \\
+  & 0.7 & 0.225 & 0.192 & 0.467 & 0.132 & 0.427 \\
+  & 0.9 & 0.203 & 0.180 & 0.333 & \textbf{0.184} & \textbf{0.552} \\
+\midrule
+\multirow{5}{*}{\shortstack[l]{DINOv2-large $\times$\\MERT-330m}}
+  & 0.0 & 0.205 & 0.132 & 0.133 & 0.110 & 0.207 \\
+  & 0.3 & 0.222 & 0.123 & 0.200 & 0.031 & 0.150 \\
+  & 0.5 & 0.218 & 0.126 & 0.133 & 0.062 & 0.245 \\
+  & 0.7 & 0.222 & 0.129 & 0.267 & 0.104 & 0.356 \\
+  & 0.9 & \textbf{0.230} & \textbf{0.141} & \textbf{0.400} & \textbf{0.196} & \textbf{0.483} \\
+\bottomrule
+\end{tabular}
+\caption{Caption-Cost FGW (image-to-audio): results at the two
+reference encoder pairs (aggregate scope). Each cell reports
+$R@10$ / Cat@10 / Routes/15 / AMI / Pearson $r$; $K_{\mathrm{cl}}=15$
+for cluster-routing and category-recall. AMI is the chance-corrected
+mutual information between source and partner-mapped target
+clusterings; Pearson $r$ is on pairwise distances under the plan's
+argmax. $\alpha$ blends the cross-modal caption cost $M$ against the
+intra-modal structural costs ($\alpha=0$: pure Sinkhorn on $M$ alone;
+$\alpha=1$: pure Gromov--Wasserstein). Best value per metric per pair
+is bolded.}
+\label{tab:d-alpha-merged}
+\end{table}
+
+Overall, we report significantly higher scores in R@10, Cat@10 and Routes/15 for both regimes across all the $alpha$ sweeps (Table \ref{tab:d-alpha-merged}) compared to the Pure-GW shown in the previous section. 
+For the text-grounded regime (upper-half), we observe that the highest retrieval results (R@10=0.228; Cat@10=0.192; Rt/15=0.533) arises for $\alpha <= 0.5$, suggesting that the text-grounded regime benefits more from a higher weight given to the feature term $M$ rather than structure (i.e. Pure-GW). 
+Text-free regime (lower-half) shows better retrieval scores at $\alpha=0.9$ (R@10=0.230; Cat@10=0.141; Rt/15=0.400). We observe a higher R@10 compared to the text-grounded regime, but lower results on the coarse-level metrics.
+
+The improvements over the results reported in \ref{tab:gw-regimes} suggest the text bias matrix $M$ successfully acting as a constraint that bounds the Gromov-Wasserstein objective in finding couplings that simultaneously optimize for minimum intra-space and caption (i.e. semantics) cost, leading to better retrieval scores. The R@10 improvement over the Pure-GW in the DINOv2-large × MERT-330m experiment at $\alpha = 0.9$ also suggest that the internal-geometry of the spaces \emph{does} carry semantic information. Structural metrics (AMI, Pearson's \textit{r}) are also way lower compared to the Pure-GW experiments, suggesting again a tradeoff between semantics and structure. 
+
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrrr}
+\toprule
+Regime & Best image & Best audio & R@1 & R@10 & R@20 & $r$ & AMI & routes \\
+\midrule
+Text-grounded & CLIP-base & CLAP-unfused & 0.062 & 0.260 & 0.357 & 0.412 & 0.154 & 9/15 \\
+Pure-unimodal & DINOv2-base & MERT-95M & 0.040 & 0.235 & 0.333 & 0.393 & 0.094 & 5/15 \\
+Mixed: CLIP $\times$ MERT & CLIP-large & MERT-95M & 0.045 & 0.225 & 0.335 & 0.536 & 0.074 & 5/15 \\
+Mixed: DINOv2/MAE $\times$ CLAP & DINOv2-small & CLAP-unfused & 0.050 & 0.247 & 0.352 & 0.404 & 0.161 & 6/15 \\
+\bottomrule
+\end{tabular}}
+\caption{Best caption-cost FGW pair by aggregate R@10 in each encoder regime. The best pure-unimodal pair is DINOv2-base $\rightarrow$ MERT-95M, but it remains close to the text-grounded result.}
+\label{tab:d-best-regime-enriched}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/d_R10_aggregate.png}
+\caption{Caption-cost FGW R@10 across encoder pairs. Unlike the direct-anchor setting, the caption-cost FGW results are relatively flat across encoders, suggesting that the caption cost dominates exact-pair ranking.}
+\label{fig:d-r10-heatmap-enriched}
+\end{figure}
+
+Table~\ref{tab:d-best-regime-enriched} and Figure~\ref{fig:d-r10-heatmap-enriched} show that the caption-cost FGW is relatively insensitive to encoder choice. The best text-grounded pair obtains R@10 $=0.260$, and the best pure-unimodal pair obtains R@10 $=0.235$. These results suggests that the caption-distance term is driving much of the retrieval behavior, while the structural term does not appear to add enough semantic discrimination beyond the caption cost itself.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/rank_distribution.png}
+\caption{Empirical CDF of the ground-truth audio rank for the non-direct methods. Caption-cost FGW and text-only retrieval rank true pairs much earlier than Pure-GW, while C-transitive lies between the geometry-only and direct caption-cost approaches.}
+\label{fig:rank-cdf-enriched}
+\end{figure}
+
+Figure~\ref{fig:rank-cdf-enriched} gives the same conclusion from the full rank distribution. Pure-GW leaves many ground-truth audios deep in the ranking. Caption-cost FGW shifts the distribution strongly toward earlier ranks. However, because the text-only curve is similarly strong, the gain should be attributed primarily to caption semantics rather than to a successful semantic use of GW structure.
+
+\section{Transitive Transport Plan Composition}
+\label{sec:results-caption-legs}
+
+Here we report the results of the transitive pipeline discussed in \ref{}.
+\begin{table}[!ht]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{@{}ll ccccc@{}}
+\toprule
+Pair & $\alpha$ & $R@10$ & Cat@10 & Rt/15 & AMI & $r$ \\
+\midrule
+\multirow{5}{*}{\shortstack[l]{CLIP-L/14 $\times$\\CLAP-HTSAT-unfused}}
+  & 0.0 & 0.200 & 0.250 & \textbf{0.533} & 0.237 & 0.065 \\
+  & 0.3 & 0.200 & 0.270 & 0.533 & \textbf{0.296} & 0.118 \\
+  & 0.5 & \textbf{0.267} & 0.280 & 0.467 & 0.262 & 0.134 \\
+  & 0.7 & 0.233 & \textbf{0.323} & 0.533 & 0.090 & 0.160 \\
+  & 0.9 & 0.167 & 0.257 & 0.333 & 0.234 & \textbf{0.259} \\
+\midrule
+\multirow{5}{*}{\shortstack[l]{DINOv2-large $\times$\\MERT-330m}}
+  & 0.0 & \textbf{0.115} & 0.115 & 0.133 & 0.031 & $-0.021$ \\
+  & 0.3 & 0.077 & 0.088 & 0.133 & 0.055 & $-0.034$ \\
+  & 0.5 & 0.077 & 0.108 & 0.133 & 0.161 & 0.069 \\
+  & 0.7 & 0.115 & \textbf{0.123} & 0.133 & 0.172 & 0.003 \\
+  & 0.9 & 0.077 & 0.115 & \textbf{0.200} & \textbf{0.367} & \textbf{0.362} \\
+\bottomrule
+\end{tabular}
+\caption{Transitive Transport Bridge (image-to-audio): results at
+the two reference encoder pairs at the canonical paired-anchor
+budget $K = 300$ per leg. Each cell reports
+$R@10$ / Cat@10 / Routes/15 / AMI / Pearson $r$;
+$K_{\mathrm{cl}}=15$ for cluster-routing and category-recall.
+Held-out scope ($S_{\text{compare}}$ excluded from queries):
+unlike Caption-Cost FGW, both legs of the transitive bridge are
+fitted on paired anchors via ridge projection, so the in-sample
+and held-out readings differ materially; the held-out figures
+reported here are the generalisation reading. $\alpha$ blends each
+leg's cross-modal caption cost $M$ against its intra-modal
+structural cost ($\alpha=0$: Sinkhorn on $M$ alone; $\alpha=1$:
+pure Gromov--Wasserstein). Best value per metric per pair bolded.}
+\label{tab:transitive-alpha-merged}
+\end{table}
+Tables~\ref{tab:exp-a-image-text-enriched} and~\ref{tab:exp-b-audio-text-enriched} show a strong asymmetry. The image-to-caption leg is reliable: CLIP-large reaches aggregate R@10 $=0.945$ and held-out R@10 $=0.780$, CLIP-base reaches aggregate R@10 $=0.940$ and held-out R@10 $=0.810$, and DINOv2 variants are also strong in aggregate. The audio-to-caption leg is much weaker: the best audio encoder, CLAP-larger, reaches aggregate R@10 $=0.748$ and held-out R@10 $=0.470$, while MERT-330M falls to aggregate R@10 $=0.292$ and held-out R@10 $=0.080$. The transitive method must multiply these errors through the bridge, so the weaker audio-caption leg limits the final image-to-audio plan.
+
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrrrr}
+\toprule
+Method & R@1 & R@5 & R@10 & R@20 & routes & kNN & AMI & $r$ \\
+\midrule
+Pure-GW & 0.000 & 0.007 & 0.020 & 0.065 & 3/15 & 0.100 & 0.299 & 0.672 \\
+D caption-cost FGW & 0.058 & 0.168 & 0.225 & 0.333 & 7/15 & 0.040 & 0.132 & 0.427 \\
+Text-only caption cosine & 0.062 & 0.168 & 0.233 & 0.320 & 2/15 & 0.025 & 0.168 & 0.315 \\
+C-transitive text bridge & 0.043 & 0.130 & 0.175 & 0.263 & 6/15 & 0.045 & 0.220 & 0.484 \\
+\bottomrule
+\end{tabular}}
+\caption{Non-direct image-to-audio methods on the canonical pair. C-transitive improves substantially over Pure-GW in exact-pair retrieval, but it does not match direct caption-cost retrieval. Structurally, it is stronger than text-only and D in AMI and $r$, but weaker than Pure-GW.}
+\label{tab:transitive-comparison-enriched}
+\end{table}
+
+The transitive result in Table~\ref{tab:transitive-comparison-enriched} is intermediate. It improves over Pure-GW in retrieval (R@10 rises from $0.020$ to $0.175$), showing that text mediation adds useful cross-modal information. It also has better structural metrics than text-only retrieval (AMI $0.220$ versus $0.168$, $r=0.484$ versus $0.315$), showing that the leg-wise OT plans preserve more geometry than raw caption cosine. However, it is weaker than D and text-only in exact-pair R@10. This suggests that the transitive bridge is not the best mechanism for instance retrieval in the current configuration, but it is a useful compromise between semantic ranking and structural preservation.
+
+
+\section{Why Pure-GW structure is not enough for semantics}
+\label{sec:results-gw-semantics}
+
+The Pure-GW result raises an important question: does high structural alignment mean that semantically meaningful audios are being selected? The current evidence suggests caution. AMI and Pearson distance correlation are structural metrics. They can be high when two spaces share cluster geometry, even if individual mapped pairs are semantically wrong.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Method & $K_{\mathrm{cl}}=5$ & $K_{\mathrm{cl}}=15$ & $K_{\mathrm{cl}}=30$ & $K_{\mathrm{cl}}=100$ & mean AMI \\
+\midrule
+D caption-cost FGW & 0.141 & 0.132 & 0.125 & 0.069 & 0.111 \\
+C-transitive text bridge & 0.204 & 0.220 & 0.231 & 0.192 & 0.217 \\
+Pure-GW & 0.340 & 0.299 & 0.204 & 0.166 & 0.241 \\
+Text-only caption cosine & 0.188 & 0.168 & 0.182 & 0.141 & 0.164 \\
+\bottomrule
+\end{tabular}
+\caption{Multi-resolution AMI for the canonical image--audio pair. Pure-GW dominates at coarse cluster scales, while C-transitive is more stable at finer clusterings. The chance baseline is approximately zero for all rows.}
+\label{tab:levels-ami-enriched}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/levels_ami_vs_kcl.png}
+\caption{AMI as a function of clustering granularity. Pure-GW is strongest at coarse resolutions, but its AMI drops as the number of clusters increases. C-transitive gives a more stable mid-level structural alignment.}
+\label{fig:levels-ami-enriched}
+\end{figure}
+
+Table~\ref{tab:levels-ami-enriched} and Figure~\ref{fig:levels-ami-enriched} show that Pure-GW has the strongest coarse cluster agreement: AMI is $0.340$ at $K_{\mathrm{cl}}=5$ and $0.299$ at $K_{\mathrm{cl}}=15$. However, its AMI falls to $0.166$ at $K_{\mathrm{cl}}=100$. This means Pure-GW is most successful at aligning broad geometry, not fine-grained correspondences. C-transitive is weaker at the coarsest level but more stable across resolutions, suggesting that captions help maintain a mid-level structure even when they do not solve exact-pair retrieval.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrr}
+\toprule
+Method & $k=1$ & $k=5$ & $k=10$ & $k=100$ & chance \\
+\midrule
+D caption-cost FGW & 0.068 & 0.079 & 0.081 & 0.075 & 0.084 \\
+C-transitive text bridge & 0.085 & 0.090 & 0.086 & 0.077 & 0.084 \\
+Pure-GW & 0.048 & 0.065 & 0.062 & 0.069 & 0.084 \\
+Text-only caption cosine & 0.075 & 0.086 & 0.081 & 0.076 & 0.084 \\
+\bottomrule
+\end{tabular}
+\caption{Cluster-category recall proxy at $K_{\mathrm{cl}}=15$. Because these are target-side embedding clusters rather than human labels, this is only a weak semantic diagnostic. The values remain close to chance, and Pure-GW is below chance at all shown depths.}
+\label{tab:category-recall-enriched}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/levels_category_recall_at_k.png}
+\caption{Cluster-category recall proxy. The curves lie close to the chance line, showing that cluster-structural alignment should not be interpreted as direct evidence of semantic retrieval.}
+\label{fig:category-recall-enriched}
+\end{figure}
+
+The category-recall proxy in Table~\ref{tab:category-recall-enriched} is the most direct warning against over-interpreting Pure-GW. Despite its high Pearson $r$ and AMI, Pure-GW remains below the chance baseline at all reported retrieval depths. C-transitive is slightly above chance for small $k$, but the effect is small. Text-only and D caption-cost FGW are also near chance. Therefore, the first conclusion is negative but important: \emph{Pure-GW discovers shared geometry, but the present evaluation does not support a claim that this geometry maintains semantic correspondences.}
+
+
+\section{Encoder compatibility and CKA}
+\label{sec:results-cka}
+
+The preceding results depend strongly on the encoder families. To understand this dependence, Table~\ref{tab:cka-regime-enriched} and Figure~\ref{fig:cka-heatmap-enriched} report linear CKA and identity-pair distance correlation before any transport plan is learned.
+
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+Regime & $n$ pairs & mean CKA & best CKA & mean identity $r$ & best identity $r$ \\
+\midrule
+Text-grounded: CLIP $\times$ CLAP & 6 & 0.289 & 0.293 & 0.245 & 0.278 \\
+Pure-unimodal: DINOv2/MAE $\times$ MERT & 8 & 0.157 & 0.189 & 0.150 & 0.166 \\
+Mixed: CLIP $\times$ MERT & 4 & 0.199 & 0.209 & 0.156 & 0.200 \\
+Mixed: DINOv2/MAE $\times$ CLAP & 12 & 0.243 & 0.287 & 0.214 & 0.254 \\
+\bottomrule
+\end{tabular}}
+\caption{Raw encoder-space compatibility before transport. CLIP $\times$ CLAP has the highest CKA, while pure-unimodal DINOv2/MAE $\times$ MERT has much lower coordinate-level similarity.}
+\label{tab:cka-regime-enriched}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{figures/cka_heatmap.png}
+\caption{Linear CKA across image and audio encoder pairs. Text-grounded CLIP $\times$ CLAP combinations are the most similar before transport. MERT combinations are lower in CKA, although some of them still preserve geometry well under Pure-GW.}
+\label{fig:cka-heatmap-enriched}
+\end{figure}
+
+The CKA results explain why CLIP/CLAP pairs are favorable for caption-mediated and direct retrieval: the two encoder families already share a text-grounded organization. However, CKA does not fully predict Pure-GW. For example, ViT-MAE-base $\rightarrow$ MERT-330M has low raw CKA but the highest Pure-GW distance preservation. CKA should therefore be read as a measure of raw coordinate compatibility, whereas GW can exploit relational compatibility even when the coordinates themselves are not directly aligned.
+
+\section{Direct-anchor alignment as an upper bound}
+\label{sec:results-direct-upper}
+
+The direct-anchor experiment is not the target low-supervision setting, because it uses paired image--audio anchors. It is nevertheless useful as an upper bound: it tests whether the embeddings contain enough information for accurate image-to-audio retrieval when direct correspondences are supplied.
+
+\begin{table}[H]
+\centering
+\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrrr}
+\toprule
+Regime & Best image & Best audio & R@1 & R@10 & R@20 & $r$ & AMI & routes \\
+\midrule
+Text-grounded & CLIP-large & CLAP-larger & 0.740 & 0.838 & 0.877 & 0.315 & 0.154 & 10/15 \\
+Pure-unimodal & DINOv2-large & MERT-95M & 0.600 & 0.677 & 0.715 & 0.466 & 0.131 & 11/15 \\
+Mixed: CLIP $\times$ MERT & CLIP-large & MERT-95M & 0.515 & 0.685 & 0.743 & 0.523 & 0.123 & 11/15 \\
+Mixed: DINOv2/MAE $\times$ CLAP & DINOv2-large & CLAP-larger & 0.772 & 0.820 & 0.840 & 0.300 & 0.164 & 13/15 \\
+\bottomrule
+\end{tabular}}
+\caption{Best C-direct pair by aggregate R@10 in each encoder regime. This semi-supervised setting uses paired image--audio anchors at $K=300, \alpha=0.5$ and therefore serves as an upper bound for pair retrieval.}
+\label{tab:cdirect-best-regime-enriched}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/cdirect_R10_aggregate.png}
+\caption{C-direct R@10 across encoder pairs. With direct paired anchors, many encoder pairs achieve high exact-pair retrieval, demonstrating that the embeddings can support image--audio matching when direct supervision is available.}
+\label{fig:cdirect-r10-heatmap-enriched}
+\end{figure}
+
+C-direct is much stronger than the non-direct methods. In the text-grounded regime, CLIP-large $\rightarrow$ CLAP-larger reaches R@10 $=0.838$; in the pure-unimodal regime, DINOv2-large $\rightarrow$ MERT-95M reaches R@10 $=0.677$. The default CLIP-large $\rightarrow$ CLAP-unfused direct result is also strong, with R@10 $=0.790$ aggregate and $0.320$ on held-out rows. These numbers show that direct anchors solve a problem that pure geometry and captions only partially solve. They also confirm that the failure of Pure-GW is not simply because the embeddings are useless for image--audio matching: the information is present, but the low-supervision methods do not recover it reliably at the instance level.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\textwidth]{figures/retrieval_structure_tradeoff.png}
+\caption{Trade-off between exact-pair retrieval and structural preservation for the canonical image-to-audio methods. Pure-GW maximizes structure, text-based methods improve retrieval, and C-direct gives the strongest retrieval under direct supervision.}
+\label{fig:retrieval-structure-tradeoff-enriched}
+\end{figure}
+
+Figure~\ref{fig:retrieval-structure-tradeoff-enriched} summarizes the key tension. Pure-GW is high in pairwise-distance preservation but low in exact-pair retrieval. Text-only and D shift rightward, improving retrieval but reducing structural preservation. C-transitive occupies an intermediate position. C-direct is far to the right, because direct anchors provide the missing correspondence information.
+
+\section{Discussion}
+\label{sec:results-discussion}
+
+The results support a nuanced conclusion about image-to-audio alignment. The most robust finding is the existence of shared \emph{structure}. Pure-GW receives no captions and no anchors, yet it produces high pairwise-distance correlations and non-trivial AMI. This indicates that visual and audio embedding spaces contain compatible global organization: groups of visually related clips can be mapped to groups of acoustically related clips in a way that preserves broad distance geometry. This finding is strongest at coarse cluster resolutions and is visible across both text-grounded and pure-unimodal encoder regimes.
+
+However, this structure is not sufficient for semantic image-to-audio alignment. Pure-GW has low exact-pair retrieval, with canonical R@10 $=0.020$, and its cluster-category recall proxy remains below chance. The metric discrepancy is central to the interpretation of the chapter. Pearson $r$ and AMI show whether a transport plan preserves the shape of the embedding spaces; R@$k$ shows whether it recovers the paired audio; the category-recall proxy asks whether retrieved targets share the same target-side cluster as the ground-truth target. Pure-GW performs well only on the first family. Therefore, the evidence supports structural alignment, but not semantic preservation.
+
+Caption information changes the picture. Text-only caption cosine and caption-cost FGW both greatly improve exact-pair retrieval over Pure-GW. In the canonical setting, R@10 rises from $0.020$ for Pure-GW to $0.233$ for text-only and $0.225$ for D caption-cost FGW. This confirms that the visual and audio captions contain useful semantic correspondence information. At the same time, D does not clearly outperform text-only retrieval, and it has weaker AMI than both Pure-GW and C-transitive. The current caption-cost FGW formulation therefore injects useful semantics, but it does not yet provide a compelling fusion of semantics and geometry. In practice, the caption cost appears to dominate the retrieval behavior, while the structural term does not reliably add semantic discrimination.
+
+The transitive bridge provides a different compromise. Its component image-to-caption leg is strong, especially for CLIP and DINOv2, but the audio-to-caption leg is weaker and becomes the bottleneck. As a result, C-transitive improves over Pure-GW in exact-pair retrieval and improves over text-only retrieval in structural metrics, but it does not match D or text-only in R@10. This suggests that text-mediated transport can preserve more geometry than raw caption matching, yet error accumulation across the two legs prevents it from becoming the best instance retriever.
+
+The encoder analysis reinforces these conclusions. Text-grounded CLIP $\times$ CLAP pairs have the highest raw CKA and perform well in caption-mediated and direct-anchor settings. Pure-unimodal DINOv2/MAE $\times$ MERT pairs have lower CKA but can still exhibit strong Pure-GW distance preservation. Thus, raw encoder similarity and relational geometry are not the same property. CLIP/CLAP is better for semantically mediated retrieval; pure-unimodal pairs can still reveal compatible geometry.
+
+Finally, the direct-anchor results define the gap that remains. With paired image--audio anchors, C-direct reaches high retrieval performance, including R@10 $=0.838$ for the best text-grounded pair and R@10 $=0.677$ for the best pure-unimodal pair. This shows that the embeddings can support image-to-audio matching when correspondence information is available. The low-supervision challenge is therefore not representational impossibility, but recovering the correct correspondences without direct anchors.
+
+Overall, the chapter supports the following conclusion. Image and audio embeddings exhibit partial cross-modal structural alignment, and captions provide useful semantic signal for ranking plausible audio targets. Nevertheless, the current low-supervision methods do not yet achieve robust semantic image-to-audio alignment. Pure-GW aligns geometry without preserving semantics; caption-cost FGW injects semantics but behaves similarly to text-only retrieval; and the transitive bridge balances structure and caption semantics but is limited by the audio-caption leg. Strong pair-level alignment is achieved only when direct paired anchors are introduced. Future evaluation should therefore include independent semantic labels, human judgments, and structure-preserving null baselines to distinguish genuine semantic alignment from shared embedding geometry.

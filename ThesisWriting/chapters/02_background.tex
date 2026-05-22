@@ -1,0 +1,248 @@
+\chapter{Background and Related Work}
+% =============================================================================
+
+This chapter collects the background and related work needed for the rest of the thesis. The central question is whether two encoders trained separately can still produce embedding spaces with enough common structure to be aligned. This question has appeared in several forms: cross-lingual word-embedding alignment, model stitching, relative representations, latent-space translation, and representational-similarity analysis (\S\ref{sec:repr}). Since the present work focuses on audio-image alignment, we then review audio-visual and multimodal representation learning (\S\ref{sec:avmulti}), before discussing the modality gap in jointly trained multimodal models (\S\ref{sec:gap}).
+
+The technical part of the chapter introduces optimal transport (\S\ref{sec:ot}), Gromov-Wasserstein transport for comparing spaces without shared coordinates (\S\ref{sec:gw}), and Fused Gromov-Wasserstein transport for adding limited cross-modal information (\S\ref{sec:fgw}). Finally, \S\ref{sec:prh} relates the work to the Platonic Representation Hypothesis and its recent refinements, and \S\ref{sec:eval} defines the retrieval and geometric metrics used in the experiments.
+
+% =============================================================================
+\section{Embedding Spaces and Representation Alignment}
+\label{sec:repr}
+\subsection{Manifold structure and semantic geometry}
+
+The manifold hypothesis suggests that natural high-dimensional data does not fill the ambient space uniformly, but lies near a lower-dimensional manifold \cite{tenenbaum2000isomap,roweis2000lle}. A representation learner can then be viewed as a map that makes this hidden structure easier to use: semantically or functionally related inputs are placed close together, while unrelated inputs are separated according to the training objective \cite{bengio2013representation}.
+
+Learned embedding spaces also have regularities that matter for alignment. They are often anisotropic, meaning that embeddings concentrate along a few dominant directions, while much of the useful discriminative information lies in the remaining variation \cite{ethayarajh2019contextual,mu2018allbutthetop,cai2021isotropy}. Their intrinsic dimensionality is also usually much smaller than their ambient dimensionality, and can be comparable even across encoders with different output sizes \cite{ansuini2019intrinsic,gong2019intrinsic,basile2024idcor}. These observations make coordinate-level matching a weak default assumption. What is more likely to transfer across encoders is relative structure: which points are close, which points are far, and how neighbourhoods are organised.
+
+\subsection{Linear and orthogonal alignment}
+
+One of the clearest early examples of compatible independent representations comes from cross-lingual word embeddings. Mikolov, Le and Sutskever \cite{mikolov2013exploiting} showed that a linear map fitted from a small bilingual dictionary can align word embeddings across languages well enough to support translation. MUSE \cite{conneau2018word} refined this idea using orthogonal Procrustes alignment, while Wasserstein-Procrustes \cite{grave2019unsupervised} combined the orthogonal constraint with optimal transport. Alvarez-Melis and Jaakkola \cite{alvarez2018gromov} removed the need for a direct cross-space cost by using Gromov-Wasserstein alignment, which matches spaces through their internal distance structures.
+
+The important point is not that all embedding spaces are linearly aligned. Rather, it is that independently trained spaces can often be related through simple geometric transformations or couplings. This thesis takes the structural version of that idea and asks whether it can be pushed from language-language alignment to audio-image alignment.
+
+\subsection{Model stitching and functional compatibility}
+
+Model stitching provides another view of the same issue. Lenc and Vedaldi \cite{lenc2015understanding} showed that intermediate layers from two convolutional networks trained on different tasks can be connected by inserting a small learned projection. Bansal, Nakkiran and Barak \cite{bansal2021revisiting} later used stitching as a diagnostic for representational compatibility, showing that independently trained networks can often be made functionally interchangeable after only a simple linear transformation. Csisz{\'a}rik et al.\ \cite{csiszarik2021similarity} extended these observations across a wider range of architectures.
+
+These results suggest that independently trained encoders can agree on data structure strongly enough that one representation can partly stand in for another. However, most stitching work remains within a single modality. Audio-image alignment is a harder case because the encoders process different input types and are usually trained with different objectives.
+
+\subsection{Relative representations and latent-space translation}
+
+Recent work makes the geometry-over-coordinates view more explicit. Moschella et al.\ \cite{moschella2023relative} propose \emph{relative representations}, where each embedding is replaced by its similarities to a fixed set of anchors. This gives a coordinate-free description of each point and can remain stable across independently trained encoders. Maiorca et al.\ \cite{maiorca2023latent} learn explicit translators between latent spaces; ASIF \cite{norelli2023asif} connects unimodal encoders through shared anchor data; and vec2vec \cite{jha2025vec2vec} translates between independently trained text-encoder spaces under an approximate geometric correspondence.
+
+These methods share the assumption that intra-space structure carries information that can transfer across encoders. They differ mainly in how they use that structure. Anchor-based methods rewrite embeddings in a relative coordinate system, while Gromov-Wasserstein works directly with pairwise distance matrices and returns a coupling between individual items.
+
+\subsection{Measuring representational similarity}
+
+A related line of work asks whether two encoders represent the same data in similar ways. Representational similarity analysis (RSA) \cite{kriegeskorte2008rsa} compares pairwise dissimilarity matrices over a shared stimulus set, while centred kernel alignment (CKA) \cite{kornblith2019similarity} compares representation kernels up to orthogonal transformations and isotropic scaling. Both methods look at relational structure rather than raw coordinates.
+
+RSA and CKA are useful diagnostics, but they stop at measurement. They can say whether two representations have similar structure, but they do not produce a matching between individual items. Gromov-Wasserstein can be seen as a constructive counterpart: it measures structural discrepancy between two metric spaces and also returns the transport plan that realises the alignment.
+
+\subsection{From unimodal to cross-modal alignment}
+
+Most representation-alignment work has focused on unimodal or cross-lingual settings, where the two spaces describe broadly similar objects. Audio-image alignment is more challenging. The encoders may differ in training data, objective, architecture, and input distribution. The modality gap discussed in \S\ref{sec:gap} also shows that even jointly trained multimodal models often do not fully mix their modalities in a shared space.
+
+In this thesis, all encoders are frozen and their outputs are treated as fixed data. We apply $L_2$ normalisation so that pairwise distances are on comparable scales, but we do not retrain or fine-tune the encoders. Since audio and image embeddings do not share a coordinate system, there is no natural distance such as $\|x_{\mathrm{audio}} - y_{\mathrm{image}}\|^2$ to use directly. Any unsupervised correspondence must therefore come from comparing structure within each modality. This is exactly the situation Gromov-Wasserstein transport is designed for.
+
+% =============================================================================
+\section{Audio-Visual and Multimodal Representation Learning} \hl{remove this section?}
+\label{sec:avmulti}
+
+A separate but closely related literature studies how to train audio, image, video, and language encoders so that their representations are aligned from the start. Early audio-visual self-supervised work used the natural synchronisation of sound and vision in video. SoundNet \cite{aytar2016soundnet} learns audio representations from unlabeled video by transferring visual supervision into the audio stream. Look, Listen and Learn \cite{arandjelovic2017look} formulates audio-visual correspondence as a self-supervised task: the model must decide whether an audio clip and a visual frame come from the same video.
+
+More recent work builds shared multimodal spaces directly. AudioCLIP \cite{guzhov2021audioclip} extends CLIP-style alignment to audio, image, and text. CLAP \cite{elizalde2022clap} and LAION-CLAP \cite{wu2023large} learn joint audio-text representations through contrastive language-audio pretraining. ImageBind \cite{girdhar2023imagebind} goes further by binding several modalities, including image, text, audio, depth, thermal, and IMU, into a shared embedding space using images as the central modality. CAV-MAE \cite{gong2023cavmae} combines contrastive audio-visual learning with masked modelling to obtain coordinated audio-visual representations.
+
+These models show that audio can be aligned with visual or linguistic modalities when paired multimodal data is available during training. The setting of this thesis is different. We do not train a joint audio-image model, and we do not assume that the encoders have ever seen paired examples during pretraining. Instead, we ask what can be recovered after the fact from frozen, independently trained encoders. In this sense, the multimodal-learning literature provides an important contrast: it shows what joint training can achieve, while this thesis studies how much alignment remains possible without joint training.
+
+\section{Optimal Transport}
+\label{sec:ot}
+
+Optimal transport (OT) compares two distributions by asking how one distribution can be moved into the other at minimum cost. We only need the discrete formulation here; broader treatments can be found in \cite{peyre2019computational}. The classical Monge problem looks for a deterministic map from source points to target points, but this is often too restrictive because mass cannot split. Kantorovich's relaxation replaces the map with a coupling: a non-negative matrix describing how much mass moves from each source point to each target point.
+
+For source weights $p \in \Delta^n$, target weights $q \in \Delta^m$, and a cost matrix $C \in \mathbb{R}^{n \times m}$, the Kantorovich problem is
+\[
+\min_{T \in \Pi(p,q)} \sum_{i,j} T_{ij} C_{ij},
+\]
+where
+\[
+\Pi(p,q)=
+\left\{
+T \geq 0 :
+\sum_j T_{ij}=p_i,\;
+\sum_i T_{ij}=q_j
+\right\}.
+\]
+The coupling $T$ is the transport plan. Entry $T_{ij}$ specifies how much mass from source point $i$ is assigned to target point $j$. In balanced problems with uniform weights, the plan can be read as a soft assignment between the two point clouds.
+
+The unregularised problem is a linear programme and becomes expensive for large datasets. Entropic regularisation makes it easier to solve by adding a smoothness penalty:
+\[
+\min_{T \in \Pi(p,q)}
+\sum_{i,j} T_{ij} C_{ij}
++
+\varepsilon \sum_{i,j} T_{ij}\log T_{ij}.
+\]
+The regularised solution can be computed efficiently with Sinkhorn's algorithm, which alternates between rescaling rows and columns until the marginals match $p$ and $q$ \cite{cuturi2013sinkhorn}. The parameter $\varepsilon$ controls the sharpness of the plan: small values give a more assignment-like coupling but can be numerically unstable, while large values are more stable but blur the plan toward the independent coupling $pq^\top$. For this reason, the cost matrices used in the experiments are normalised before transport is computed. The implementations used in this thesis build on the Python Optimal Transport library \cite{flamary2021pot}.
+
+% =============================================================================
+\section{Gromov-Wasserstein Distance}
+\label{sec:gw}
+
+\subsection{Comparing incomparable spaces}
+
+Standard OT requires a cross-space cost $C_{ij}=c(x_i,y_j)$, which assumes that source and target points can be compared directly. This assumption fails for independently trained audio and image encoders: their embeddings may have different dimensions, different coordinate systems, and no shared metric.
+
+Gromov-Wasserstein (GW) distance avoids this requirement by comparing intra-space distances instead of cross-space distances \cite{memoli2011gromov,peyre2016gromov}. The two spaces do not need common coordinates. They only need their own internal distance structures.
+
+\subsection{Intra-modal cost matrices}
+
+Given source embeddings $\{x_i\}_{i=1}^n$ and target embeddings $\{y_j\}_{j=1}^m$, we construct two intra-modal distance matrices:
+\[
+C_1[i,i'] = \|x_i - x_{i'}\|^2,
+\qquad
+C_2[j,j'] = \|y_j - y_{j'}\|^2.
+\]
+Each matrix describes the geometry within one modality. In the experiments, these matrices are normalised to $[0,1]$ by dividing by their respective maxima. No audio-image distance is used at this stage.
+
+\subsection{The GW objective}
+
+GW looks for a coupling $T \in \Pi(p,q)$ that makes the relational structure of the two spaces agree. With squared loss, the objective is
+\[
+\min_{T \in \Pi(p,q)}
+\sum_{i,i',j,j'}
+\big(C_1[i,i'] - C_2[j,j']\big)^2
+T_{ij}T_{i'j'}.
+\]
+The idea is simple: if two source points are close to each other, GW prefers to match them to two target points that are also close to each other. A large value of $T_{ij}$ means that source item $i$ occupies a similar structural role in its space as target item $j$ occupies in its space.
+
+This is a quadratic assignment problem and is NP-hard in general. In practice, entropic regularisation and iterative solvers make the problem tractable for the dataset sizes considered here.
+
+\subsection{Entropic Gromov-Wasserstein}
+
+The entropic GW objective is
+\[
+\min_{T \in \Pi(p,q)}
+\sum_{i,i',j,j'}
+L\big(C_1[i,i'],C_2[j,j']\big)
+T_{ij}T_{i'j'}
++
+\varepsilon \sum_{i,j} T_{ij}\log T_{ij}.
+\]
+The solver alternates between two steps: it linearises the structural term around the current coupling, then solves the resulting entropic OT problem. For squared loss, the main part of the linearised cost is
+\[
+G = -2 C_1 T C_2^\top,
+\]
+up to terms depending only on the marginals. A Sinkhorn solve on this cost gives the next coupling.
+
+\begin{algorithm}[ht]
+\caption{Entropic Gromov-Wasserstein}
+\label{alg:egw}
+\begin{algorithmic}[1]
+\Require Intra-modal costs $C_1,C_2$; marginals $p,q$; regularisation $\varepsilon$; tolerance $\tau$
+\Ensure Transport plan $T \in \Pi(p,q)$
+\State Initialise $T \gets p q^\top$
+\Repeat
+    \State Compute structural cost $G \gets -2 C_1 T C_2^\top$
+    \State Update $T_{\mathrm{new}} \gets \textsc{Sinkhorn}(G,p,q,\varepsilon)$
+    \State Set $\Delta \gets \|T_{\mathrm{new}}-T\|_F$
+    \State $T \gets T_{\mathrm{new}}$
+\Until{$\Delta < \tau$}
+\State \Return $T$
+\end{algorithmic}
+\end{algorithm}
+
+The main computational cost is the product $C_1 T C_2^\top$, which scales cubically for balanced problems. Approximate methods such as sampled GW \cite{kerdoncuff2021sampled} and low-rank GW \cite{scetbon2022lowrank} reduce this cost and are evaluated in the experimental chapters.
+
+GW is sensitive to the entropic regularisation parameter. If $\varepsilon$ is too small, the Sinkhorn kernel can underflow and the solver becomes unstable. If it is too large, the coupling becomes too diffuse and loses useful structure. In our setting, the useful range is narrow, and float64 precision is used where necessary.
+
+\subsection{GW in alignment problems}
+
+GW has become useful in problems where two objects have internal structure but no obvious pointwise feature comparison. In graph matching and node embedding, for example, Xu et al.\ \cite{xu2019gromov} use GW to align graphs through their topology while learning node embeddings. In multimodal clustering, Gong, Nie and Xu \cite{gong2022gromov} use GW to align and cluster modalities that may be unpaired or missing, relying on kernel structures rather than direct feature comparison. These examples are not the same as audio-image retrieval, but they support the same methodological idea: when direct comparison is unreliable or unavailable, relational structure can still provide an alignment signal.
+
+The GW transport plan is the only bridge between the two modalities. It is not built from labels or direct audio-image distances; it comes entirely from the similarity of intra-modal distance patterns. Thus, a high value of $T_{ij}$ means that item $i$ in one modality and item $j$ in the other have similar geometric roles. Whether that structural match also corresponds to the same semantic object is an empirical question addressed in the experiments.
+
+% =============================================================================
+\section{Fused Gromov-Wasserstein and the Ridge Bridge}
+\label{sec:fgw}
+
+Pure GW uses only intra-modal geometry. This is useful when we want to test how far structure alone can go, but it also creates ambiguities. For example, if two clusters have similar internal geometry, GW may have no way to decide which cluster in one modality should match which cluster in the other. Fused Gromov-Wasserstein (FGW) adds a cross-modal cost matrix $M$ to help resolve this ambiguity \cite{vayer2019optimal,vayer2020fused}.
+
+\subsection{Objective}
+
+Given intra-modal costs $C_1$ and $C_2$, a cross-modal cost $M$, marginals $p$ and $q$, a blend parameter $\alpha \in [0,1]$, and an entropic regulariser $\varepsilon$, FGW minimises
+\[
+\mathrm{FGW}(T)
+=
+(1-\alpha)\langle T,M\rangle
++
+\alpha\,\mathrm{GW}(C_1,C_2,T)
++
+\varepsilon \sum_{i,j} T_{ij}\log T_{ij}.
+\]
+When $\alpha=1$, FGW becomes pure GW. When $\alpha=0$, it becomes ordinary entropic OT on $M$. Intermediate values combine cross-modal evidence with structural consistency.
+
+\subsection{Constructing the cross-modal cost}
+
+The matrix $M$ must come from some source of cross-modal information. In this thesis, the main source is a simple linear bridge learned from a small number of paired examples. Given paired source and target embeddings, we fit a ridge-regression map $W$ from the source space into the target space and define
+\[
+M_{ij} = \|(XW)_i - y_j\|^2.
+\]
+This gives a dense cross-modal cost over all source-target pairs, even if only a small number of pairs was used to fit the bridge.
+
+To put this into practice, we consider the regime, which we call "Semi-supervised pairs". A small set of labelled audio-image pairs is used to fit $W$, after which $M$ is computed for all samples. Simply put, the solver attempts to balance the cross-modal cost $M$ against the intra-modal structures $C_1$ and $C_2$.
+
+\subsection{Solver}
+
+FGW uses the same alternating structure as entropic GW. The only change is that the per-iteration cost combines the GW linearisation with the fixed cross-modal cost:
+\[
+L = \alpha G + (1-\alpha)M,
+\qquad
+G = -2 C_1 T C_2^\top.
+\]
+A Sinkhorn solve on $L$ then gives the next coupling.
+
+\begin{algorithm}[ht]
+\caption{Entropic Fused Gromov-Wasserstein}
+\label{alg:fgw}
+\begin{algorithmic}[1]
+\Require Intra-modal costs $C_1,C_2$; cross-modal cost $M$; marginals $p,q$; blend $\alpha$; regularisation $\varepsilon$; tolerance $\tau$
+\Ensure Transport plan $T \in \Pi(p,q)$
+\State Initialise $T \gets p q^\top$
+\Repeat
+    \State Compute structural cost $G \gets -2 C_1 T C_2^\top$
+    \State Blend costs $L \gets \alpha G + (1-\alpha)M$
+    \State Update $T_{\mathrm{new}} \gets \textsc{Sinkhorn}(L,p,q,\varepsilon)$
+    \State Set $\Delta \gets \|T_{\mathrm{new}}-T\|_F$
+    \State $T \gets T_{\mathrm{new}}$
+\Until{$\Delta < \tau$}
+\State \Return $T$
+\end{algorithmic}
+\end{algorithm}
+
+When $\alpha=0$, the cost no longer depends on $T$, so the outer loop is unnecessary and the method reduces to a single Sinkhorn solve on $M$.
+
+\subsection{Ridge regression for the cross-modal projection}
+\label{subsec:ridge}
+
+The ridge bridge follows the same broad idea as linear alignment in cross-lingual word embeddings \cite{mikolov2013exploiting}. Orthogonal Procrustes is not suitable here because audio and image embeddings may have different dimensions, so we use an unconstrained linear map with regularisation.
+
+Given $k$ paired embeddings $(X_{\mathrm{paired}},Y_{\mathrm{paired}})$, the ridge solution is
+\[
+W =
+\left(
+X_{\mathrm{paired}}^\top X_{\mathrm{paired}}
++
+\alpha_{\mathrm{ridge}} I
+\right)^{-1}
+X_{\mathrm{paired}}^\top Y_{\mathrm{paired}},
+\]
+where $W \in \mathbb{R}^{d_1 \times d_2}$ maps source embeddings of dimension $d_1$ into target embeddings of dimension $d_2$. The ridge term is important because the number of paired examples may be far smaller than the embedding dimension. It keeps the projection stable by shrinking the solution toward zero.
+
+After fitting $W$, we project all source embeddings and compute the dense cost
+\[
+x_{\mathrm{proj},i} = (XW)_i,
+\qquad
+M[i,j] =
+\frac{\|x_{\mathrm{proj},i}-y_j\|^2}{\max(M)}.
+\]
+A dense matrix is useful because it assigns a cross-modal score to every unlabelled source-target pair. A sparse cost defined only on the labelled pairs would leave most of the transport problem effectively unchanged from pure GW.
+

@@ -13,3 +13,5 @@ val_captions.json*
 *tex
 *.md
 !results/core_set_analysis/*.md
+!ThesisWriting/**
+.DS_Store

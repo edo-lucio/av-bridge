@@ -1,0 +1,79 @@
+% =============================================================================
+% main.tex — switch template by changing the TWO marked blocks below
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+% BLOCK A: DOCUMENT CLASS — uncomment exactly one
+% -----------------------------------------------------------------------------
+%\documentclass[dejavu]{ituthesis}           % ITU Copenhagen
+\documentclass[12pt, a4paper]{report}        % Vanilla LaTeX (clean default)
+%\documentclass[12pt, a4paper]{book}         % Vanilla book (two-sided)
+%\documentclass[a4paper, 12pt]{scrreprt}     % KOMA-Script
+%\documentclass[12pt, oneside]{memoir}       % Memoir
+
+\usepackage{multirow}
+\usepackage{soul}
+\input{config}
+
+% -----------------------------------------------------------------------------
+% BLOCK B: CLASS WIRING — uncomment the block that matches BLOCK A
+% -----------------------------------------------------------------------------
+
+% --- ituthesis ---
+%\settitle{\thesisTitle}
+%\setauthor{Nikolaos Alexandros Tsalidis de Zabala \\ Edoardo Samuele Lucini}
+%\setsupervisor{\thesisSupervisor}
+%\setextrasupervisor{\thesisCoSupervisor}
+%\setdate{\thesisDate}
+
+% --- report / book / scrreprt / memoir ---
+\title{\thesisTitle}
+\author{\thesisAuthor}
+\date{\thesisDate}
+
+% =============================================================================
+\begin{document}
+
+% ---------------------------------------------------------------------------
+% FRONT MATTER
+% ---------------------------------------------------------------------------
+
+% \frontmatter    ← only works with ituthesis / book / memoir; remove for report
+
+\input{titlepage}
+% \maketitle      ← swap above for this if you want the class default title page
+
+\newpage
+
+\begin{abstract}
+  TODO: Write abstract using Kent Beck's 4-sentence method
+  (problem, why it matters, startling contribution, implications).
+\end{abstract}
+
+\cleardoublepage
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+% ---------------------------------------------------------------------------
+% MAIN MATTER
+% ---------------------------------------------------------------------------
+
+% \mainmatter     ← only works with ituthesis / book / memoir; remove for report
+% \midsloppy      ← ituthesis only
+% \sloppybottom   ← ituthesis only
+
+\input{chapters/01_introduction}
+\input{chapters/02_background}
+\input{chapters/04_method}
+\input{chapters/05_experiments}
+\input{chapters/06_discussion}
+\input{chapters/07_future_work}
+\input{chapters/08_conclusion}
+
+% ---------------------------------------------------------------------------
+% BIBLIOGRAPHY
+% ---------------------------------------------------------------------------
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}

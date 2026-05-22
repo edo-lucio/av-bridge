@@ -1,0 +1,72 @@
+% =============================================================================
+% titlepage.tex — custom title page, edit freely
+% =============================================================================
+\begin{titlepage}
+  \newgeometry{left=3cm, right=3cm, top=3cm, bottom=3cm}
+
+  % Top bar: institution + degree
+  \noindent
+  \begin{minipage}[t]{0.6\textwidth}
+    \raggedright
+    {\small\scshape\color{gray} \thesisInstitution}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.35\textwidth}
+    \raggedleft
+    {\small\scshape\color{gray} MSc Thesis \textbullet\ \thesisDate}
+  \end{minipage}
+
+  \vspace*{0.12\textheight}
+
+  % Thin rule above title
+  \noindent\rule{\textwidth}{0.4pt}
+  \vspace{0.5em}
+
+  % Title — large, tight, left-aligned
+  \noindent
+  {\fontsize{26}{30}\selectfont\bfseries\raggedright
+    Structural Alignment of Independent\\
+    Embedding Spaces via\\
+    Entropic Optimal Transport
+  \par}
+
+  \vspace{0.4em}
+  \noindent\rule{\textwidth}{0.4pt}
+
+  \vspace{2.5em}
+
+  % Authors side by side
+  \noindent
+  \begin{minipage}[t]{0.48\textwidth}
+    \raggedright
+    {\small\scshape\color{gray} Authors}\\[0.4em]
+    {\normalsize Nikolaos Alexandros\\Tsalidis de Zabala}\\[0.8em]
+    {\normalsize Edoardo Samuele Lucini}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[t]{0.48\textwidth}
+    \raggedright
+    {\small\scshape\color{gray} Supervisors}\\[0.4em]
+    {\normalsize \thesisSupervisor}\\[0.8em]
+    {\normalsize \thesisCoSupervisor}
+  \end{minipage}
+
+  % Push logo/footer to the bottom
+  \vfill
+
+  % Bottom: logo left, date right
+  \noindent
+  \begin{minipage}[b]{0.5\textwidth}
+    \raggedright
+    % Uncomment if you have an institution logo:
+    % \includegraphics[height=1.2cm]{figures/itu_logo}
+    {\small\color{gray} \thesisInstitution}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[b]{0.4\textwidth}
+    \raggedleft
+    {\small\color{gray} \thesisDate}
+  \end{minipage}
+
+  \restoregeometry
+\end{titlepage}

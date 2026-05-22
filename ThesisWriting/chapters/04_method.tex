@@ -1,0 +1,510 @@
+% Requires: \usepackage{amsmath,amssymb}
+% Optional: \usepackage{booktabs}
+
+\chapter{Methodology}
+\label{sec:methodology}
+
+\subsection{Problem Formulation}
+\label{subsec:problem_formulation}
+
+This work addresses the problem of audio--visual correspondence estimation under weak or indirect cross-modal supervision. Given a collection of paired video clips, each sample contains a visual observation, an audio observation, and modality-specific natural-language descriptions. The objective is to retrieve the audio item that corresponds to a given visual query, while also preserving the semantic and structural relations between the two modalities.
+
+Let
+\begin{equation}
+    \mathcal{D}
+    =
+    \left\{
+    \left(v_i, a_i, \mathcal{C}^{V}_i, \mathcal{C}^{A}_i\right)
+    \right\}_{i=1}^{N}
+\end{equation}
+denote the dataset, where $v_i$ is the visual observation associated with clip $i$, $a_i$ is the corresponding audio observation, $\mathcal{C}^{V}_i$ is the set of visual captions, and $\mathcal{C}^{A}_i$ is the set of audio captions. The ground-truth cross-modal correspondence is assumed to be index-preserving, i.e.,
+\begin{equation}
+    g(i) = i,
+\end{equation}
+meaning that the $i$-th visual item and the $i$-th audio item originate from the same video clip.
+
+The task is formulated as a retrieval problem. For each visual query $v_i$, a method produces a score or transport matrix
+\begin{equation}
+    T \in \mathbb{R}_{+}^{N \times N},
+\end{equation}
+where $T_{ij}$ measures the strength of association between visual item $i$ and audio item $j$. The predicted match is obtained as
+\begin{equation}
+    \hat{g}(i) = \arg\max_{j} T_{ij}.
+\end{equation}
+More generally, the top-$k$ retrieved audio candidates for visual query $i$ are given by the $k$ largest entries in the $i$-th row of $T$.
+
+When the method is based on optimal transport, the visual and audio collections are treated as empirical probability measures:
+\begin{equation}
+    \mu_V = \sum_{i=1}^{N} p_i \delta_{x_i},
+    \qquad
+    \mu_A = \sum_{j=1}^{N} q_j \delta_{y_j},
+\end{equation}
+where $x_i$ and $y_j$ are visual and audio embeddings, respectively. Unless otherwise stated, uniform marginals are used:
+\begin{equation}
+    p_i = q_j = \frac{1}{N}.
+\end{equation}
+The admissible set of transport plans is therefore
+\begin{equation}
+    \Pi(p,q)
+    =
+    \left\{
+    T \in \mathbb{R}_{+}^{N \times N}
+    :
+    T\mathbf{1}=p,\;
+    T^{\top}\mathbf{1}=q
+    \right\}.
+\end{equation}
+
+\subsection{Dataset}
+\label{subsec:dataset}
+
+The experiments are conducted on the AVCaps dataset, an audio--visual captioning dataset containing separate captions for the audio, visual, and joint audio--visual content of video clips \cite{sudarsanam2025avcaps}. The dataset is particularly appropriate for this study because it provides modality-specific linguistic supervision: the visual captions describe what is visible in the scene, while the audio captions describe the acoustic content. This structure enables the investigation of audio--visual alignment both directly, through paired clips, and indirectly, through language as an intermediate semantic representation.
+
+For each clip, a representative visual observation and an audio observation are extracted. Samples are retained only when the required visual, audio, and caption information is available. The resulting data consist of aligned quadruples
+\[
+    (v_i, a_i, \mathcal{C}^{V}_i, \mathcal{C}^{A}_i),
+\]
+which are used to construct visual, audio, and textual embedding spaces.
+
+\subsection{Representation Learning}
+\label{subsec:representation_learning}
+
+The method relies on frozen pretrained encoders rather than training new modality-specific encoders from scratch. Let
+\[
+    f_V,\qquad f_A,\qquad f_T
+\]
+denote visual, audio, and text encoders, respectively. In practice, these may be instantiated using contrastive vision--language models such as CLIP \cite{radford2021learning}, contrastive audio--language models such as CLAP \cite{elizalde2023clap}, and sentence-level text encoders such as Sentence-BERT \cite{reimers2019sentencebert}.
+
+Each visual observation is embedded as
+\begin{equation}
+    x_i =
+    \frac{f_V(v_i)}
+    {\left\| f_V(v_i) \right\|_2}
+    \in \mathbb{R}^{d_V},
+\end{equation}
+and each audio observation as
+\begin{equation}
+    y_i =
+    \frac{f_A(a_i)}
+    {\left\| f_A(a_i) \right\|_2}
+    \in \mathbb{R}^{d_A}.
+\end{equation}
+Caption sets are embedded by averaging sentence embeddings and normalizing the result:
+\begin{equation}
+    z_i^V =
+    \frac{
+    \frac{1}{|\mathcal{C}^{V}_i|}
+    \sum_{c \in \mathcal{C}^{V}_i} f_T(c)
+    }
+    {
+    \left\|
+    \frac{1}{|\mathcal{C}^{V}_i|}
+    \sum_{c \in \mathcal{C}^{V}_i} f_T(c)
+    \right\|_2
+    },
+\end{equation}
+\begin{equation}
+    z_i^A =
+    \frac{
+    \frac{1}{|\mathcal{C}^{A}_i|}
+    \sum_{c \in \mathcal{C}^{A}_i} f_T(c)
+    }
+    {
+    \left\|
+    \frac{1}{|\mathcal{C}^{A}_i|}
+    \sum_{c \in \mathcal{C}^{A}_i} f_T(c)
+    \right\|_2
+    }.
+\end{equation}
+The corresponding matrices are denoted by
+\[
+    X \in \mathbb{R}^{N \times d_V},
+    \qquad
+    Y \in \mathbb{R}^{N \times d_A},
+    \qquad
+    Z^V \in \mathbb{R}^{N \times d_T},
+    \qquad
+    Z^A \in \mathbb{R}^{N \times d_T}.
+\]
+All rows are $\ell_2$-normalized. Consequently, dot products correspond to cosine similarities, and squared Euclidean distances are monotonic functions of cosine dissimilarity:
+\begin{equation}
+    \|u-v\|_2^2 = 2 - 2u^{\top}v,
+    \qquad
+    \text{when }
+    \|u\|_2=\|v\|_2=1.
+\end{equation}
+
+\subsection{Assumptions}
+\label{subsec:assumptions}
+
+The methodology is based on the following assumptions.
+
+First, clip-level correspondence is assumed to be valid: the visual observation, audio observation, visual captions, and audio captions associated with index $i$ describe the same underlying event.
+
+Second, the extracted visual and audio observations are assumed to be representative of the semantic content of the corresponding video clip. This is a necessary approximation because videos are temporally extended, whereas the retrieval model operates on fixed-size visual and audio representations.
+
+Third, pretrained embeddings are assumed to encode meaningful semantic and structural information. The proposed methods do not fine-tune the encoders; instead, they operate on fixed representations.
+
+Fourth, the empirical distributions over visual and audio items are assumed to have uniform mass. This implies that each sample contributes equally to the alignment objective.
+
+Finally, captions are assumed to provide an intermediate semantic bridge between the visual and audio modalities. They are not treated as replacements for the original modalities, but as auxiliary representations that can guide or evaluate cross-modal alignment.
+
+\subsection{Alignment Methods}
+\label{subsec:alignment_methods}
+
+This section describes the alignment methods used to estimate the audio--visual correspondence matrix $T$.
+
+\subsubsection{Random Baseline}
+\label{subsubsec:random_baseline}
+
+The random baseline provides a lower-bound reference. It assigns random non-negative scores to each visual--audio pair and normalizes the rows:
+\begin{equation}
+    T_{ij}
+    =
+    \frac{U_{ij}}
+    {\sum_{\ell=1}^{N} U_{i\ell}},
+    \qquad
+    U_{ij} \sim \mathrm{Uniform}(0,1).
+\end{equation}
+This method uses no visual, audio, or textual information. Its purpose is to verify that the proposed methods perform above chance.
+
+\subsubsection{Text-Only Caption Retrieval}
+\label{subsubsec:text_only}
+
+The text-only baseline estimates audio--visual correspondence using only modality-specific captions. The score between visual item $i$ and audio item $j$ is defined as the cosine similarity between the corresponding visual-caption and audio-caption embeddings:
+\begin{equation}
+    T^{\mathrm{text}}_{ij}
+    =
+    (z_i^V)^{\top} z_j^A.
+\end{equation}
+This baseline measures how much of the audio--visual correspondence can be recovered from language alone.
+
+\subsubsection{Entropic Optimal Transport with Supervised Projection}
+\label{subsubsec:entropic_ot}
+
+A semi-supervised optimal transport method is used when a small set of paired anchor examples is available. Let
+\[
+    \mathcal{S} \subset \{1,\ldots,N\}
+\]
+denote the set of anchor indices. A regularized linear map $W$ is learned from visual embeddings to audio embeddings by solving
+\begin{equation}
+    W^{\star}
+    =
+    \arg\min_{W}
+    \left\|
+    X_{\mathcal{S}} W - Y_{\mathcal{S}}
+    \right\|_F^2
+    +
+    \lambda \|W\|_F^2,
+\end{equation}
+where $\lambda>0$ is a regularization parameter. The projected visual embeddings are then
+\begin{equation}
+    \tilde{x}_i =
+    \frac{x_i W^{\star}}
+    {\|x_i W^{\star}\|_2}.
+\end{equation}
+A cross-modal cost matrix is defined by
+\begin{equation}
+    M_{ij}
+    =
+    d(\tilde{x}_i, y_j),
+\end{equation}
+where $d(\cdot,\cdot)$ is a distance function, typically squared Euclidean distance on normalized embeddings.
+
+The entropic optimal transport objective is
+\begin{equation}
+    T^{\star}
+    =
+    \arg\min_{T \in \Pi(p,q)}
+    \langle T, M \rangle
+    +
+    \varepsilon
+    \sum_{i,j}
+    T_{ij}
+    \left(
+    \log T_{ij} - 1
+    \right),
+    \label{eq:entropic_ot}
+\end{equation}
+where $\varepsilon>0$ controls the strength of entropic regularization. This formulation follows the Sinkhorn-regularized optimal transport framework \cite{cuturi2013sinkhorn,peyre2019computational}. The entropy term makes the optimization smoother and yields a soft correspondence matrix rather than a hard one-to-one assignment.
+
+\subsubsection{Fused Gromov--Wasserstein Alignment}
+\label{subsubsec:fgw}
+
+Entropic optimal transport uses only pairwise cross-modal costs. However, audio and visual embeddings may not lie in directly comparable spaces. To address this, Fused Gromov--Wasserstein alignment incorporates both feature-level costs and intra-modal relational structure \cite{vayer2020fused}.
+
+Let $C^V$ and $C^A$ denote pairwise distance matrices within the visual and audio embedding spaces:
+\begin{equation}
+    C^V_{ik} = d(x_i,x_k),
+    \qquad
+    C^A_{j\ell} = d(y_j,y_\ell).
+\end{equation}
+The FGW objective is
+\begin{equation}
+\begin{split}
+    T^{\star}
+    =
+    \arg\min_{T \in \Pi(p,q)}
+    &
+    (1-\alpha)
+    \sum_{i,j} M_{ij} T_{ij}
+    \\
+    &
+    +
+    \alpha
+    \sum_{i,k,j,\ell}
+    \left(
+    C^V_{ik} - C^A_{j\ell}
+    \right)^2
+    T_{ij}T_{k\ell}
+    \\
+    &
+    +
+    \varepsilon
+    \sum_{i,j}
+    T_{ij}
+    \left(
+    \log T_{ij} - 1
+    \right).
+\end{split}
+\label{eq:fgw}
+\end{equation}
+The parameter $\alpha \in [0,1]$ balances feature-level alignment and structural alignment. When $\alpha=0$, the problem reduces to entropic optimal transport. When $\alpha=1$, the method relies only on relational structure and becomes a Gromov--Wasserstein alignment problem.
+
+\subsubsection{Pure Gromov--Wasserstein Alignment}
+\label{subsubsec:gw}
+
+The pure Gromov--Wasserstein method removes the direct cross-modal feature cost and aligns the modalities only through their internal geometries \cite{peyre2016gromov}. The objective is
+\begin{equation}
+\begin{split}
+    T^{\star}_{\mathrm{GW}}
+    =
+    \arg\min_{T \in \Pi(p,q)}
+    &
+    \sum_{i,k,j,\ell}
+    \left(
+    C^V_{ik} - C^A_{j\ell}
+    \right)^2
+    T_{ij}T_{k\ell}
+    \\
+    &
+    +
+    \varepsilon
+    \sum_{i,j}
+    T_{ij}
+    \left(
+    \log T_{ij} - 1
+    \right).
+\end{split}
+\label{eq:gw}
+\end{equation}
+This method is fully unsupervised with respect to direct audio--visual pairing. It tests whether the local and global geometry of the visual embedding space is sufficiently similar to that of the audio embedding space to recover meaningful correspondences.
+
+\subsubsection{Caption-Cost Fused Gromov--Wasserstein Alignment}
+\label{subsubsec:caption_fgw}
+
+A caption-guided variant of FGW uses text as the cross-modal feature space. Instead of defining $M$ from projected visual and audio embeddings, the cost is computed from visual-caption and audio-caption embeddings:
+\begin{equation}
+    M^{\mathrm{cap}}_{ij}
+    =
+    d(z_i^V,z_j^A).
+\end{equation}
+The intra-modal structure matrices are still computed from the visual and audio embeddings:
+\begin{equation}
+    C^V_{ik}=d(x_i,x_k),
+    \qquad
+    C^A_{j\ell}=d(y_j,y_\ell).
+\end{equation}
+The resulting objective is
+\begin{equation}
+\begin{split}
+    T^{\star}_{\mathrm{capFGW}}
+    =
+    \arg\min_{T \in \Pi(p,q)}
+    &
+    (1-\alpha)
+    \sum_{i,j} M^{\mathrm{cap}}_{ij}T_{ij}
+    \\
+    &
+    +
+    \alpha
+    \sum_{i,k,j,\ell}
+    \left(
+    C^V_{ik} - C^A_{j\ell}
+    \right)^2
+    T_{ij}T_{k\ell}
+    \\
+    &
+    +
+    \varepsilon
+    \sum_{i,j}
+    T_{ij}
+    \left(
+    \log T_{ij} - 1
+    \right).
+\end{split}
+\label{eq:caption_fgw}
+\end{equation}
+This method combines semantic information from captions with structural information from the original visual and audio modalities.
+
+\subsubsection{Transitive Caption Bridge}
+\label{subsubsec:transitive_bridge}
+
+The transitive bridge decomposes audio--visual alignment into two modality-to-caption alignment problems. The first transport plan aligns visual embeddings to visual-caption embeddings:
+\begin{equation}
+    T^{V \rightarrow C_V}.
+\end{equation}
+The second aligns audio embeddings to audio-caption embeddings:
+\begin{equation}
+    T^{A \rightarrow C_A}.
+\end{equation}
+A bridge matrix
+\begin{equation}
+    B \in \mathbb{R}_{+}^{N \times N}
+\end{equation}
+then connects visual-caption items to audio-caption items. When the visual and audio captions correspond to the same indexed clips, $B$ may be taken as the identity matrix. More generally, $B$ may encode semantic similarity between visual-caption and audio-caption embeddings.
+
+The final visual-to-audio correspondence is obtained by composition:
+\begin{equation}
+    T^{V \rightarrow A}
+    =
+    \operatorname{RowNorm}
+    \left(
+    T^{V \rightarrow C_V}
+    B
+    \left(T^{A \rightarrow C_A}\right)^{\top}
+    \right),
+    \label{eq:transitive_bridge}
+\end{equation}
+where $\operatorname{RowNorm}(\cdot)$ denotes row-wise normalization. This method formalizes language as an intermediate semantic space through which visual and audio modalities can be connected.
+
+\subsection{Evaluation Metrics}
+\label{subsec:evaluation_metrics}
+
+The methods are evaluated using retrieval, semantic, and structural metrics. Evaluation can be performed either over all visual queries or over a held-out subset of queries not used as anchor examples. In both cases, retrieval is performed against the full audio candidate set.
+
+\subsubsection{Recall at $k$}
+
+The primary retrieval metric is recall at $k$:
+\begin{equation}
+    R@k
+    =
+    \frac{1}{|\mathcal{Q}|}
+    \sum_{i \in \mathcal{Q}}
+    \mathbb{I}
+    \left[
+    g(i) \in \operatorname{Top}_{k}(i)
+    \right],
+    \label{eq:recall_at_k}
+\end{equation}
+where $\mathcal{Q}$ is the set of evaluated visual queries and $\operatorname{Top}_{k}(i)$ is the set of the $k$ highest-ranked audio items for query $i$. In this study, recall is reported for multiple values of $k$, such as $k \in \{1,5,10,20\}$.
+
+\subsubsection{Category Recall}
+
+Exact instance retrieval can be overly strict when several audio clips are semantically similar. Therefore, a coarse category-based retrieval metric is also used. Let $c_A(j)$ denote the cluster or category label of audio item $j$. Category recall at $k$ is defined as
+\begin{equation}
+    \operatorname{CatR@}k
+    =
+    \frac{1}{|\mathcal{Q}|}
+    \sum_{i \in \mathcal{Q}}
+    \frac{1}{k}
+    \sum_{j \in \operatorname{Top}_{k}(i)}
+    \mathbb{I}
+    \left[
+    c_A(j) = c_A(g(i))
+    \right].
+    \label{eq:category_recall}
+\end{equation}
+This metric measures whether retrieved audio items belong to the same semantic neighborhood as the ground-truth audio item.
+
+\subsubsection{Cluster Agreement}
+
+To evaluate whether the induced audio assignments preserve coarse visual structure, embeddings are clustered separately in the visual and audio spaces. The predicted target for visual item $i$ is
+\begin{equation}
+    \hat{g}(i)=\arg\max_j T_{ij}.
+\end{equation}
+The agreement between visual cluster labels $c_V(i)$ and mapped audio cluster labels $c_A(\hat{g}(i))$ is measured using standard clustering agreement scores, including normalized mutual information, adjusted mutual information, adjusted Rand index, homogeneity, completeness, and V-measure.
+
+\subsubsection{Neighborhood Preservation}
+
+Local structure preservation is measured using $k$-nearest-neighbor overlap. Let $\mathcal{N}^V_k(i)$ denote the $k$ nearest neighbors of $x_i$ in the visual embedding space, and let $\mathcal{N}^A_k(\hat{g}(i))$ denote the $k$ nearest neighbors of the predicted audio match $y_{\hat{g}(i)}$ in the audio embedding space. The overlap is
+\begin{equation}
+    \operatorname{kNNOverlap}
+    =
+    \frac{1}{|\mathcal{Q}|}
+    \sum_{i \in \mathcal{Q}}
+    \frac{
+    \left|
+    \left\{
+    \hat{g}(\ell): \ell \in \mathcal{N}^V_k(i)
+    \right\}
+    \cap
+    \mathcal{N}^A_k(\hat{g}(i))
+    \right|
+    }{k}.
+    \label{eq:knn_overlap}
+\end{equation}
+A high value indicates that local neighborhoods in the visual space are mapped to corresponding neighborhoods in the audio space.
+
+\subsubsection{Pairwise Distance Correlation}
+
+Global structural preservation is measured by the Pearson correlation between visual pairwise distances and the pairwise distances of the corresponding predicted audio items:
+\begin{equation}
+    \rho
+    =
+    \operatorname{corr}
+    \left(
+    \left\{
+    d(x_i,x_j)
+    \right\}_{i<j},
+    \left\{
+    d(y_{\hat{g}(i)},y_{\hat{g}(j)})
+    \right\}_{i<j}
+    \right).
+    \label{eq:distance_correlation}
+\end{equation}
+This metric evaluates whether the learned correspondence preserves global geometric relations between samples.
+
+\subsubsection{Caption Agreement}
+
+Caption agreement evaluates whether the retrieved audio item is semantically compatible with the visual query according to modality-specific captions. Define the caption similarity matrix
+\begin{equation}
+    S^{\mathrm{cap}}_{ij}
+    =
+    (z_i^V)^{\top}z_j^A.
+\end{equation}
+The caption agreement of the top prediction is
+\begin{equation}
+    \operatorname{CapArgmax}
+    =
+    \frac{1}{|\mathcal{Q}|}
+    \sum_{i \in \mathcal{Q}}
+    S^{\mathrm{cap}}_{i,\hat{g}(i)}.
+    \label{eq:caption_argmax}
+\end{equation}
+A soft transport-based caption agreement can also be computed as
+\begin{equation}
+    \operatorname{CapMass}
+    =
+    \frac{1}{|\mathcal{Q}|}
+    \sum_{i \in \mathcal{Q}}
+    \sum_{j=1}^{N}
+    \bar{T}_{ij}
+    S^{\mathrm{cap}}_{ij},
+    \label{eq:caption_mass}
+\end{equation}
+where $\bar{T}$ denotes the row-normalized transport matrix. To account for chance-level semantic agreement, caption lift is defined as
+\begin{equation}
+    \operatorname{CapLift}
+    =
+    \operatorname{CapArgmax}
+    -
+    \operatorname{CapChance},
+    \label{eq:caption_lift}
+\end{equation}
+where $\operatorname{CapChance}$ is estimated by randomly pairing visual-caption and audio-caption embeddings.
+
+\subsection{Summary}
+\label{subsec:methodology_summary}
+
+The proposed methodology treats audio--visual alignment as a transport-based retrieval problem over frozen multimodal representations. Direct optimal transport aligns projected visual embeddings with audio embeddings, Fused Gromov--Wasserstein alignment combines cross-modal feature costs with intra-modal relational structure, pure Gromov--Wasserstein alignment tests whether structural information alone is sufficient, caption-cost FGW uses language as a semantic cost, and the transitive bridge explicitly composes modality-to-caption correspondences to obtain audio--visual retrieval. The evaluation framework combines exact retrieval metrics with semantic and structural measures, thereby assessing not only whether the correct audio item is retrieved, but also whether the learned correspondence preserves meaningful cross-modal relations.
