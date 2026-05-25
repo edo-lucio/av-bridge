@@ -222,7 +222,7 @@ def compute_for_row(spec: ExperimentSpec, csv_row: dict) -> dict:
 
     if scope == "aggregate":
         hit, size = core_set_hit_rate(T, gt)
-    elif scope in ("heldout", "heldout_like_c"):
+    elif scope == "heldout":
         if spec.heldout_idx_path is None or not spec.heldout_idx_path.exists():
             try:
                 rel = spec.heldout_idx_path.relative_to(ROOT)

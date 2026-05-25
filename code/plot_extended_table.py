@@ -147,7 +147,7 @@ def main() -> None:
     fig, axes = plt.subplots(1, 2, figsize=(14, 5.5), sharey=True)
     _panel(axes[0], df[df.scope == "aggregate"],
            "Aggregate scope (all rows)")
-    _panel(axes[1], df[df.scope == "heldout_like_c"],
+    _panel(axes[1], df[df.scope == "heldout"],
            "Held-out scope (rows outside $S_{\\mathrm{compare}}$)")
 
     # Single legend from the right panel (it has more entries usually).

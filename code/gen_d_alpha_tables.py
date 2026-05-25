@@ -9,7 +9,7 @@ varies.
 Usage:
   python code/gen_d_alpha_tables.py                       # both pairs
   python code/gen_d_alpha_tables.py --pair canonical      # one pair only
-  python code/gen_d_alpha_tables.py --scope heldout_like_c
+  python code/gen_d_alpha_tables.py --scope heldout
 """
 from __future__ import annotations
 
@@ -204,7 +204,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pair", choices=list(PAIRS) + ["all"], default="all")
     ap.add_argument("--scope", default="aggregate",
-                    choices=["aggregate", "heldout_like_c"])
+                    choices=["aggregate", "heldout"])
     ap.add_argument("--merged", action="store_true",
                     help="Emit a single merged table with one row per pair "
                          "(no K column).")

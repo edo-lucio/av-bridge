@@ -201,7 +201,7 @@ def mode_eval_same_rows(args: argparse.Namespace) -> None:
     Y = np.load(EMB / f"audio_{args.audio_encoder}.npy")
 
     # Reconstruct the same-rows partition used by Experiment D's
-    # heldout_like_c scope and Experiment C-transitive's held-out.
+    # heldout scope and Experiment C-transitive's held-out.
     S_a = _kmeans_partition(X, REUSABLE_K)
     S_b = _kmeans_partition(Y, REUSABLE_K)
     S_union = np.unique(np.concatenate([S_a, S_b]))

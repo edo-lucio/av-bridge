@@ -24,7 +24,7 @@
       "audio_encoder": "clap-larger",
       "metric_used": "nmi",
       "metric_value": 0.8336972773037123,
-      "scope": "heldout_like_c",
+      "scope": "heldout",
       "plan_path": "results/qualitative_best/T_d_best__clip-base__clap-larger.npy"
     },
     {
@@ -34,7 +34,7 @@
       "audio_encoder": "mert-330m",
       "metric_used": "nmi",
       "metric_value": 0.8203983712406583,
-      "scope": "heldout_like_c",
+      "scope": "heldout",
       "plan_path": "results/qualitative_best/T_unsup_best__clip-base__mert-330m.npy"
     },
     {
@@ -44,7 +44,7 @@
       "audio_encoder": "clap-larger",
       "metric_used": "nmi",
       "metric_value": 0.8634735441331755,
-      "scope": "heldout_like_c",
+      "scope": "heldout",
       "plan_path": "results/qualitative_best/T_text_best__clip-base__clap-larger.npy"
     }
   ]

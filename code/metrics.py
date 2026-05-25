@@ -340,7 +340,7 @@ def cluster_confusion(
     return C, src_lab, tgt_lab
 
 
-def category_recall_at_k(
+def category_precision_at_k(
     T: np.ndarray,
     Y_tgt: np.ndarray,
     gt: np.ndarray,
@@ -349,11 +349,16 @@ def category_recall_at_k(
     seed: int = 42,
 ) -> float:
     """Fraction of each query's top-$k$ retrievals that share the
-    target-side K-means cluster of the query's GT partner.
+    target-side K-means cluster of the query's GT partner. This is a
+    per-query precision averaged over queries (proportion of correct-
+    cluster items within the top-$k$ window), not a standard recall;
+    the name was historically ``category_recall_at_k`` and has been
+    renamed for clarity.
 
     A coarse-retrieval softening of $R@k$: ``R@k`` asks "is the exact
-    target row in the top-$k$?", category-recall@k asks "are the top-$k$
-    in the *right neighbourhood* (same target cluster as the GT)?".
+    target row in the top-$k$?", category-precision@k asks "are the
+    top-$k$ in the *right neighbourhood* (same target cluster as the
+    GT)?".
     """
     if Y_tgt.shape[0] < 2 or T.shape[1] < 1:
         return float("nan")
@@ -397,14 +402,14 @@ def evaluate(
     pr = pearson_pairwise(T, X_src, Y_tgt)
     agree = cluster_agreement(T, X_src, Y_tgt, K_cl, seed=seed)
     cap = caption_agreement(T, Z_src_cap, Z_tgt_cap, seed=seed)
-    cat10 = category_recall_at_k(T, Y_tgt, gt, K_cl, k=10, seed=seed)
+    cat10 = category_precision_at_k(T, Y_tgt, gt, K_cl, k=10, seed=seed)
     return {
         "R@1": r1, "R@5": r5, "R@10": r10, "R@20": r20,
         "routes_correct": r_correct, "routes_total": r_total,
         "knn_overlap": kno, "pearson_r": pr,
         **agree,
         **cap,
-        "cat_recall_10": cat10,
+        "cat_precision_10": cat10,
     }
 
 
@@ -442,7 +447,7 @@ def evaluate_heldout(
             "pearson_r": float("nan"),
             **_AGREEMENT_NANS,
             **_CAPAGREE_NANS,
-            "cat_recall_10": float("nan"),
+            "cat_precision_10": float("nan"),
         }
 
     # Row-masked recall.
@@ -526,7 +531,7 @@ def evaluate_heldout(
     # Coarse-retrieval analog of R@10 on the held-out rows. The target
     # K-means is computed on the *full* target pool (the candidate
     # set the held-out queries can retrieve into is all of Y_tgt).
-    cat10 = category_recall_at_k(T_h, Y_tgt, gt_h, K_cl, k=10, seed=seed)
+    cat10 = category_precision_at_k(T_h, Y_tgt, gt_h, K_cl, k=10, seed=seed)
 
     return {
         "R@1": r1, "R@5": r5, "R@10": r10, "R@20": r20,
@@ -534,5 +539,5 @@ def evaluate_heldout(
         "knn_overlap": kno, "pearson_r": pr,
         **agree,
         **cap,
-        "cat_recall_10": cat10,
+        "cat_precision_10": cat10,
     }

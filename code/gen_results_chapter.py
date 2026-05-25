@@ -382,9 +382,9 @@ def cross_method_summary() -> str:
     df = pd.read_csv(RES / "exp_grid" / "sweep.csv")
     methods = [
         ("c-direct", "C-direct (supervised, $K=300$)", "heldout"),
-        ("d",        "D (caption-cost FGW)",           "heldout_like_c"),
-        ("unsup",    "Pure-GW",                        "heldout_like_c"),
-        ("text",     "Text-only (cosine)",             "heldout_like_c"),
+        ("d",        "D (caption-cost FGW)",           "heldout"),
+        ("unsup",    "Pure-GW",                        "heldout"),
+        ("text",     "Text-only (cosine)",             "heldout"),
     ]
     rows = []
     for exp, title, scope in methods:
@@ -889,7 +889,7 @@ $\mathcal{X}\leftrightarrow\mathcal{Y}$ pairs.
 """)
     parts.append(reference_pair_table(
         RES / "exp_grid" / "sweep.csv", "d", "D",
-        [("aggregate", "Aggregate"), ("heldout_like_c", "Same-rows")],
+        [("aggregate", "Aggregate"), ("heldout", "Same-rows")],
         "tab:d-refpairs",
         r"at $\alpha = 0.7$",
     ))
@@ -906,7 +906,7 @@ text-free counterparts does not destroy the recipe.
 """)
     parts.append(top_n_table(
         RES / "exp_grid" / "sweep.csv",
-        "d", "heldout_like_c", "D", "same-rows", "tab:d-encoders",
+        "d", "heldout", "D", "same-rows", "tab:d-encoders",
         n=8,
     ))
     parts.append(fig(
@@ -981,7 +981,7 @@ methodology: no labels, no captions, no auxiliary signal of any kind.
 """)
     parts.append(reference_pair_table(
         RES / "exp_grid" / "sweep.csv", "unsup", "Pure-GW",
-        [("aggregate", "Aggregate"), ("heldout_like_c", "Same-rows")],
+        [("aggregate", "Aggregate"), ("heldout", "Same-rows")],
         "tab:gw-refpairs",
         r"at $\alpha = 1$ (no $M$)",
     ))
@@ -999,7 +999,7 @@ partners.
 """)
     parts.append(top_n_table(
         RES / "exp_grid" / "sweep.csv",
-        "unsup", "heldout_like_c", "Pure-GW", "same-rows", "tab:gw-encoders",
+        "unsup", "heldout", "Pure-GW", "same-rows", "tab:gw-encoders",
         n=8,
     ))
     parts.append(fig_pair(
@@ -1047,7 +1047,7 @@ geometry that NMI and Pearson $r$ are computed in.
 """)
     parts.append(reference_pair_table(
         RES / "exp_grid" / "sweep.csv", "text", "Text-only",
-        [("aggregate", "Aggregate"), ("heldout_like_c", "Same-rows")],
+        [("aggregate", "Aggregate"), ("heldout", "Same-rows")],
         "tab:text-refpairs",
         r"(no transport plan)",
     ))
@@ -1066,7 +1066,7 @@ the raw caption cosine.
 """)
     parts.append(top_n_table(
         RES / "exp_grid" / "sweep.csv",
-        "text", "heldout_like_c", "Text-only", "same-rows",
+        "text", "heldout", "Text-only", "same-rows",
         "tab:text-encoders", n=8,
     ))
     parts.append(fig(
@@ -1210,9 +1210,9 @@ granularity $K_{\mathrm{cl}}$ across an order of magnitude
 ($5 \le K_{\mathrm{cl}} \le 100$) and reports chance-corrected AMI
 between source-cluster labels and partner-mapped target-cluster
 labels under each recipe; Figure~\ref{fig:levels-cr} reports
-category-recall$@k$ --- the fraction of a query's top-$k$
+category-precision$@k$ --- the fraction of a query's top-$k$
 retrievals that share its source cluster at the chapter's default
-$K_{\mathrm{cl}} = 15$, a ``soft'' recall that does not require the
+$K_{\mathrm{cl}} = 15$, a ``soft'' precision that does not require the
 exact partner.
 
 """)
@@ -1235,20 +1235,22 @@ exact partner.
         width=r"0.85\linewidth",
     ))
     parts.append(fig(
-        "results/exp_grid/plots/levels_category_recall_at_k.png",
+        "results/exp_grid/plots/levels_category_precision_at_k.png",
         caption=(
-            r"Category-recall$@k$ under each recipe: average fraction "
+            r"Category-precision$@k$ under each recipe: average fraction "
             r"of a query's top-$k$ retrievals that share its source "
             r"$k$-means cluster (at $K_{\mathrm{cl}} = 15$). The "
             r"dashed grey line is the chance baseline (the expected "
             r"category-match rate of a uniform random retrieval, "
-            r"$\sum_{c} (n_c / n)^2$). Category-recall$@k$ is the "
-            r"``soft recall'' counterpart to $R@k$: a value above "
-            r"chance at small $k$ means the recipe's top retrievals "
-            r"share the query's category even when they are not the "
-            r"exact GT partner."
+            r"$\sum_{c} (n_c / n)^2$). Despite the historical name "
+            r"``category recall'', the metric is a top-$k$ precision "
+            r"(proportion of correct-cluster items within the top-$k$ "
+            r"window) and therefore decreases with $k$ for any working "
+            r"ranker; a value above chance at small $k$ means the "
+            r"recipe's top retrievals share the query's category even "
+            r"when they are not the exact GT partner."
         ),
-        label="fig:levels-cr",
+        label="fig:levels-cp",
         width=r"0.85\linewidth",
     ))
     parts.append(r"""
@@ -1258,14 +1260,14 @@ structure at multiple granularities --- coarse \emph{and} fine.
 Recipes whose AMI falls toward zero as $K_{\mathrm{cl}}$ grows
 preserve structure only at coarse levels: the partner is in the
 right ``region of the space'' but the recipe cannot resolve finer
-distinctions. (ii) The category-recall curve reports the same
+distinctions. (ii) The category-precision curve reports the same
 behaviour from the retrieval angle: a value of $0.20$ at $k = 5$
 means one in five of the recipe's top retrievals shares the
 query's category even though the exact partner is not necessarily
 among them. This is the operational sense in which a recipe with
 $R@10 \approx 0.07$ can still be ``semantically retrieving useful
 information''. (iii) Reading the two figures jointly distinguishes
-\emph{categorical near-misses} (high category-recall, low instance
+\emph{categorical near-misses} (high category-precision, low instance
 $R@k$) from \emph{wrong retrievals} (both near chance); only the
 first pattern licences the ``semantically meaningful alignment''
 claim.

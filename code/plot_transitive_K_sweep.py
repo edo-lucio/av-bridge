@@ -1,8 +1,7 @@
 r"""K sweep for the Transitive Transport Bridge at a fixed alpha,
 overlaid against the other recipes as horizontal reference lines.
 
-For each metric (R@10, cat_recall_10, routes ratio, AMI, Pearson r,
-cap-cos lift), one panel:
+For each metric (R@10, Cat-prec@10, instance Prec@10, Pearson r), one panel:
   X-axis: K (paired-anchor budget per leg; same K is used on both legs
            of the transitive composition).
   Y-axis: metric value at chosen scope.
@@ -43,20 +42,24 @@ PLOT_DIR = RES / "exp_grid" / "plots"
 # Encoder pairs and their suffix conventions.
 PAIRS = {
     "canonical": {"suffix": "",
-                  "label":  "canonical (CLIP-L $\\times$ CLAP-unfused)"},
+                  "label":  "text-grounded (CLIP-L $\\times$ CLAP-unfused)"},
     "textfree":  {"suffix": "__dinov2-large__mert-330m",
                   "label":  "text-free (DINOv2-L $\\times$ MERT-330m)"},
 }
 
 # Metrics: (csv_column, display_label, axis_lo, axis_hi_or_None).
-# Special key ``__routes_ratio`` is computed inline as
-# routes_correct / routes_total. Upper bounds are None so the y-axis
-# auto-fits the full range of values across recipes.
+# Special key ``__precision_10`` is computed inline as R@10 / 10 ---
+# instance precision@10 under the single-ground-truth-per-query
+# convention of AVCaps. Shown alongside Cat-prec@10 to make the
+# "instance vs categorical precision at the same retrieval depth"
+# comparison directly readable. Both bounds are None so the y-axis
+# auto-fits the data range, including negative values (Pearson $r$ on
+# noisy plans).
 METRICS = [
-    ("R@10",            "$R@10$",                       0.0, None),
-    ("cat_recall_10",   "Cat-recall@10 (class)",        0.0, None),
-    ("__routes_ratio",  "Routes (correct / $K_{cl}$)",  0.0, None),
-    ("pearson_r",       "Pearson $r$",                  0.0, None),
+    ("R@10",            "$R@10$",                       None, None),
+    ("cat_precision_10","Cat-prec@10 (class)",          None, None),
+    ("__precision_10",  "Prec@10 (instance)",           None, None),
+    ("pearson_r",       "Pearson $r$",                  None, None),
 ]
 
 # Other recipes to draw as horizontal reference lines, with the per-recipe
@@ -100,6 +103,14 @@ def _metric_from_row(row: pd.Series, col: str) -> float:
         if not np.isfinite(total) or total == 0:
             return float("nan")
         return float(row.get("routes_correct", float("nan"))) / total
+    if col == "__precision_10":
+        # Instance precision@10 under single-GT-per-query: number of
+        # correct partners in top-10 (always 0 or 1) divided by k=10.
+        # Equal to R@10 / 10 in expectation across queries.
+        r10 = float(row.get("R@10", float("nan")))
+        if not np.isfinite(r10):
+            return float("nan")
+        return r10 / 10.0
     if col not in row.index:
         return float("nan")
     return float(row[col])
@@ -195,6 +206,8 @@ def render(out_path: Path, pair_keys: list[str],
                 ax.set_ylim(vmin, vmax)
             elif vmin is not None:
                 ax.set_ylim(bottom=vmin)
+            elif vmax is not None:
+                ax.set_ylim(top=vmax)
             ax.grid(True, which="both", alpha=0.25)
             sns.despine(ax=ax)
 
@@ -238,8 +251,8 @@ def main() -> None:
                     help="Fix alpha for both legs of the transitive sweep "
                          "and for the Caption-Distance FGW reference line. "
                          "Default 0.7.")
-    ap.add_argument("--scope", default="heldout_like_c",
-                    choices=["aggregate", "heldout_like_c", "heldout"],
+    ap.add_argument("--scope", default="heldout",
+                    choices=["aggregate", "heldout"],
                     help="Scope for the sweep and reference recipes.")
     ap.add_argument("--pair", choices=["canonical", "textfree", "both"],
                     default="both")

@@ -64,8 +64,25 @@ CSV_COLS = [
     "nmi", "ami", "ari", "v_measure", "homogeneity", "completeness",
     "cap_cos_argmax", "cap_cos_planmass",
     "cap_cos_chance", "cap_cos_identity", "cap_cos_lift",
-    "cat_recall_10",
+    "cat_precision_10",
+    "plan_row_entropy",
 ]
+
+
+def plan_row_entropy(T: np.ndarray) -> float:
+    """Mean row entropy of a coupling, in nats.
+
+    Diagnostic for plan sharpness: argmax-style sharp plans have low
+    row entropy; uniform plans have entropy log(n_cols). Used to
+    visualise the smoothing effect of FGW's structural term as alpha
+    increases.
+    """
+    if T.size == 0:
+        return float("nan")
+    row_sums = T.sum(axis=1, keepdims=True)
+    P = T / np.maximum(row_sums, 1e-12)
+    H = -(P * np.log(P + 1e-12)).sum(axis=1)
+    return float(H.mean())
 
 
 def kmeans_stratified_indices(
@@ -167,14 +184,17 @@ def run_sweep(
             for alpha in alpha_grid:
                 print(f"  K={K:4d}  alpha={alpha:.2f}")
                 T = recipe(X, Y, S, S, alpha=alpha, eps=0.005, lam=1.0)
+                ent = plan_row_entropy(T)
 
                 agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
                                Z_src_cap=Z_src_cap, Z_tgt_cap=Z_tgt_cap)
-                w.writerow({"K": K, "alpha": alpha, "scope": "aggregate", **agg})
+                w.writerow({"K": K, "alpha": alpha, "scope": "aggregate",
+                            **agg, "plan_row_entropy": ent})
 
                 hel = evaluate_heldout(T, X, Y, gt, S, K_cl, seed=SEED,
                                        Z_src_cap=Z_src_cap, Z_tgt_cap=Z_tgt_cap)
-                w.writerow({"K": K, "alpha": alpha, "scope": "heldout", **hel})
+                w.writerow({"K": K, "alpha": alpha, "scope": "heldout",
+                            **hel, "plan_row_entropy": ent})
 
                 if (save_plan_at is not None
                         and (K, alpha) == save_plan_at
@@ -288,7 +308,7 @@ def exp_c_transitive(image_name: str, audio_name: str,
     csv_path = out_dir / "sweep_transitive.csv"
 
     # Persist the heldout-row subset (rows whose i is in S_compare are the
-    # "anchor union" rows; the remaining 100 are the heldout_like_c slice).
+    # "anchor union" rows; the remaining 100 are the heldout slice).
     # Downstream metric scripts can recover the heldout split without
     # access to the image / audio embeddings.
     np.save(out_dir / "heldout_compare_idx.npy", S_compare)
@@ -313,6 +333,7 @@ def exp_c_transitive(image_name: str, audio_name: str,
                 T_ac = recipe(Y, ZA_a, S_ac, S_ac,
                               alpha=alpha, eps=0.005, lam=1.0)
                 T = transitive_plan_identity(T_iv, T_ac)
+                ent = plan_row_entropy(T)
 
                 agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
                                Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
@@ -320,9 +341,11 @@ def exp_c_transitive(image_name: str, audio_name: str,
                                        seed=SEED,
                                        Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
                 w.writerow({"K": K, "alpha": alpha,
-                            "scope": "aggregate", **agg})
+                            "scope": "aggregate", **agg,
+                            "plan_row_entropy": ent})
                 w.writerow({"K": K, "alpha": alpha,
-                            "scope": "heldout_like_c", **hel})
+                            "scope": "heldout", **hel,
+                            "plan_row_entropy": ent})
                 f.flush()
 
                 # Persist every (K, alpha) plan under plans/ so the
@@ -331,6 +354,20 @@ def exp_c_transitive(image_name: str, audio_name: str,
                 np.save(
                     plans_dir / f"T__K{K}__a{alpha:.2f}.npy",
                     T,
+                )
+                # Also persist the two leg plans per (K, alpha) for
+                # downstream leg-vs-composition diagnostics (e.g.
+                # top-K leg agreement, leg row-entropy comparisons).
+                # Cheap on disk; eliminates the need for HPC re-fitting
+                # when adding new analyses that compare the leg plans
+                # at different alpha values.
+                np.save(
+                    plans_dir / f"T_iv__K{K}__a{alpha:.2f}.npy",
+                    T_iv,
+                )
+                np.save(
+                    plans_dir / f"T_ac__K{K}__a{alpha:.2f}.npy",
+                    T_ac,
                 )
 
                 # Persist the plan at the canonical reusable point so
@@ -395,17 +432,24 @@ def exp_d_caption(image_name: str, audio_name: str,
         for alpha in alpha_grid:
             print(f"  alpha={alpha:.2f}")
             T = caption_cost_recipe(X, Y, ZV, ZA, alpha=alpha, eps=0.005)
+            ent = plan_row_entropy(T)
             agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
                            Z_src_cap=ZV, Z_tgt_cap=ZA)
             # K column is 0: no anchors / no ridge in this experiment.
-            w.writerow({"K": 0, "alpha": alpha, "scope": "aggregate", **agg})
+            w.writerow({"K": 0, "alpha": alpha, "scope": "aggregate", **agg,
+                        "plan_row_entropy": ent})
+
+            # Same-rows "held-out-like" evaluation at EVERY alpha so
+            # downstream plotters (transitive K-sweep, full-vs-heldout)
+            # can pick the right alpha. For D specifically the
+            # aggregate/heldout distinction is sampling noise because D
+            # has no anchors, but we still need the row to exist at
+            # every alpha for the plot's scope-consistent comparison.
+            cmp = evaluate_heldout(T, X, Y, gt, S_compare, K_cl, seed=SEED,
+                                   Z_src_cap=ZV, Z_tgt_cap=ZA)
+            w.writerow({"K": 0, "alpha": alpha, "scope": "heldout", **cmp,
+                        "plan_row_entropy": ent})
             if abs(alpha - REUSABLE_ALPHA) < 1e-12:
-                # Same-rows view at the canonical alpha — flagged as not a
-                # real held-out (D has no anchors), only for comparability
-                # with C-direct/C-transitive at the same out-of-A∪B rows.
-                cmp = evaluate_heldout(T, X, Y, gt, S_compare, K_cl, seed=SEED,
-                                       Z_src_cap=ZV, Z_tgt_cap=ZA)
-                w.writerow({"K": 0, "alpha": alpha, "scope": "heldout_like_c", **cmp})
                 saved_plan = T
 
             # Per-alpha plan save so the core-set metric can be computed
@@ -473,9 +517,12 @@ def exp_unsupervised_gw(image_name: str, audio_name: str,
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=CSV_COLS)
         w.writeheader()
+        ent = plan_row_entropy(T)
         # K=0 sentinel, alpha=1.0 (pure GW endpoint).
-        w.writerow({"K": 0, "alpha": 1.0, "scope": "aggregate", **agg})
-        w.writerow({"K": 0, "alpha": 1.0, "scope": "heldout_like_c", **cmp})
+        w.writerow({"K": 0, "alpha": 1.0, "scope": "aggregate", **agg,
+                    "plan_row_entropy": ent})
+        w.writerow({"K": 0, "alpha": 1.0, "scope": "heldout", **cmp,
+                    "plan_row_entropy": ent})
 
     np.save(out_dir / "T_gw.npy", T)
     np.save(out_dir / "heldout_compare_idx.npy", S_compare)
@@ -535,9 +582,12 @@ def exp_text_only(image_name: str, audio_name: str,
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=CSV_COLS)
         w.writeheader()
+        ent = plan_row_entropy(T)
         # K=0, alpha=NaN sentinels: no anchors, no FGW blend.
-        w.writerow({"K": 0, "alpha": float("nan"), "scope": "aggregate", **agg})
-        w.writerow({"K": 0, "alpha": float("nan"), "scope": "heldout_like_c", **cmp})
+        w.writerow({"K": 0, "alpha": float("nan"), "scope": "aggregate",
+                    **agg, "plan_row_entropy": ent})
+        w.writerow({"K": 0, "alpha": float("nan"), "scope": "heldout",
+                    **cmp, "plan_row_entropy": ent})
 
     np.save(out_dir / "T_text.npy", T)
     np.save(out_dir / "heldout_compare_idx.npy", S_compare)
@@ -592,10 +642,13 @@ def exp_random(image_name: str, audio_name: str,
     with csv_path.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=CSV_COLS)
         w.writeheader()
+        ent = plan_row_entropy(T)
         w.writerow({"K": 0, "alpha": float("nan"),
-                    "scope": "aggregate", **agg})
+                    "scope": "aggregate", **agg,
+                    "plan_row_entropy": ent})
         w.writerow({"K": 0, "alpha": float("nan"),
-                    "scope": "heldout_like_c", **hel})
+                    "scope": "heldout", **hel,
+                    "plan_row_entropy": ent})
 
     np.save(out_dir / "T_random.npy", T)
     np.save(out_dir / "heldout_compare_idx.npy", S_compare)
@@ -620,7 +673,7 @@ GRID_CSV_COLS = [
     "nmi", "ami", "ari", "v_measure", "homogeneity", "completeness",
     "cap_cos_argmax", "cap_cos_planmass",
     "cap_cos_chance", "cap_cos_identity", "cap_cos_lift",
-    "cat_recall_10",
+    "cat_precision_10",
 ]
 
 
@@ -758,9 +811,9 @@ def exp_encoder_grid(
                 for scope, m in [("aggregate", evaluate(T, X, Y, gt, KCL["c-transitive"], seed=SEED, **cap_kw)),
                                  ("heldout",   evaluate_heldout(T, X, Y, gt, S_compare,
                                                                 KCL["c-transitive"], seed=SEED, **cap_kw))]:
-                    # Use heldout_like_c so this row aligns with d / unsup / text
+                    # Use heldout so this row aligns with d / unsup / text
                     # held-out partitioning (rows outside S_a U S_b).
-                    scope_out = "heldout_like_c" if scope == "heldout" else scope
+                    scope_out = "heldout" if scope == "heldout" else scope
                     rows.append({"experiment": "c-transitive",
                                  "image_encoder": img, "audio_encoder": aud,
                                  "K": K_target, "alpha": alpha_iv,
@@ -773,7 +826,7 @@ def exp_encoder_grid(
             rows.append({"experiment": "d", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": alpha_d, "scope": "aggregate", **agg})
             rows.append({"experiment": "d", "image_encoder": img, "audio_encoder": aud,
-                         "K": 0, "alpha": alpha_d, "scope": "heldout_like_c", **hel})
+                         "K": 0, "alpha": alpha_d, "scope": "heldout", **hel})
 
             # Unsup (pure entropic GW)
             T = pure_gw(X, Y, eps=eps)
@@ -782,7 +835,7 @@ def exp_encoder_grid(
             rows.append({"experiment": "unsup", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": 1.0, "scope": "aggregate", **agg})
             rows.append({"experiment": "unsup", "image_encoder": img, "audio_encoder": aud,
-                         "K": 0, "alpha": 1.0, "scope": "heldout_like_c", **hel})
+                         "K": 0, "alpha": 1.0, "scope": "heldout", **hel})
 
             # Text-only (the plan itself is encoder-independent, but structural
             # metrics depend on Y, so we evaluate per cell).
@@ -792,7 +845,7 @@ def exp_encoder_grid(
             rows.append({"experiment": "text", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": float("nan"), "scope": "aggregate", **agg})
             rows.append({"experiment": "text", "image_encoder": img, "audio_encoder": aud,
-                         "K": 0, "alpha": float("nan"), "scope": "heldout_like_c", **hel})
+                         "K": 0, "alpha": float("nan"), "scope": "heldout", **hel})
 
             # Random baseline: uniform row-stochastic plan, no information.
             T = random_baseline(X.shape[0], Y.shape[0], seed=SEED)
@@ -801,7 +854,7 @@ def exp_encoder_grid(
             rows.append({"experiment": "random", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": float("nan"), "scope": "aggregate", **agg})
             rows.append({"experiment": "random", "image_encoder": img, "audio_encoder": aud,
-                         "K": 0, "alpha": float("nan"), "scope": "heldout_like_c", **hel})
+                         "K": 0, "alpha": float("nan"), "scope": "heldout", **hel})
 
             # Persist progressively so a crash doesn't lose hours of work.
             write_rows(rows)

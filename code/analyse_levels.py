@@ -24,9 +24,9 @@ at the canonical encoder pair:
 
 Outputs:
   results/exp_grid/plots/levels_ami_vs_kcl.png
-  results/exp_grid/plots/levels_category_recall_at_k.png
+  results/exp_grid/plots/levels_category_precision_at_k.png
   results/exp_grid/levels_ami.csv
-  results/exp_grid/levels_category_recall.csv
+  results/exp_grid/levels_category_precision.csv
 """
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def ami_at_granularity(T: np.ndarray, X: np.ndarray, Y: np.ndarray,
     return float(adjusted_mutual_info_score(src, tgt[partners]))
 
 
-def category_recall_at_k(T: np.ndarray, X: np.ndarray, Y: np.ndarray,
+def category_precision_at_k(T: np.ndarray, X: np.ndarray, Y: np.ndarray,
                           K_cl: int, k_values: list[int]) -> dict[int, float]:
     """Mean fraction of each query's top-K retrievals that share the
     \\emph{target-side} cluster of the query's ground-truth partner.
@@ -183,29 +183,29 @@ def main() -> None:
     tgt_sizes = np.bincount(tgt_kcl15) / n
     expected_chance = float((tgt_sizes * tgt_sizes).sum())  # exp. fraction match
     for label, T in loaded:
-        ks_dict = category_recall_at_k(T, X, Y, 15, RECALL_K_GRID)
+        ks_dict = category_precision_at_k(T, X, Y, 15, RECALL_K_GRID)
         for k, v in ks_dict.items():
-            rows.append({"recipe": label, "k": k, "category_recall": v,
-                         "category_recall_chance": expected_chance})
+            rows.append({"recipe": label, "k": k, "category_precision": v,
+                         "category_precision_chance": expected_chance})
     df_cr = pd.DataFrame(rows)
-    df_cr.to_csv(RES / "exp_grid" / "levels_category_recall.csv", index=False)
-    print(f"[wrote] {RES / 'exp_grid' / 'levels_category_recall.csv'}")
+    df_cr.to_csv(RES / "exp_grid" / "levels_category_precision.csv", index=False)
+    print(f"[wrote] {RES / 'exp_grid' / 'levels_category_precision.csv'}")
 
     fig, ax = plt.subplots(figsize=(8, 5))
     for (label, _), color in zip(loaded, palette):
         sub = df_cr[df_cr.recipe == label].sort_values("k")
-        ax.plot(sub.k, sub.category_recall, marker="o", lw=1.6, color=color,
+        ax.plot(sub.k, sub.category_precision, marker="o", lw=1.6, color=color,
                 label=label)
     ax.axhline(expected_chance, color="grey", linestyle="--", lw=1.2,
                label=f"chance ({expected_chance:.3f})")
     ax.set_xscale("log")
     ax.set_xlabel(r"$k$ (top-$k$ retrievals)")
-    ax.set_ylabel(r"category recall$@k$  ($K_{\mathrm{cl}} = 15$)")
-    ax.set_title("Categorical recall vs retrieval depth")
+    ax.set_ylabel(r"category precision$@k$  ($K_{\mathrm{cl}} = 15$)")
+    ax.set_title("Categorical precision vs retrieval depth")
     ax.legend(fontsize=9, loc="best")
     sns.despine(ax=ax)
     fig.tight_layout()
-    out = PLOT_DIR / "levels_category_recall_at_k.png"
+    out = PLOT_DIR / "levels_category_precision_at_k.png"
     fig.savefig(out, dpi=140, bbox_inches="tight")
     plt.close(fig)
     print(f"[wrote] {out}")

@@ -49,11 +49,11 @@ RECIPE_LABELS = {
 
 # Per-recipe held-out scope label in the grid CSV.
 HELDOUT_SCOPE = {
-    "random":       "heldout_like_c",
-    "c-transitive": "heldout_like_c",
-    "d":            "heldout_like_c",
-    "unsup":        "heldout_like_c",
-    "text":         "heldout_like_c",
+    "random":       "heldout",
+    "c-transitive": "heldout",
+    "d":            "heldout",
+    "unsup":        "heldout",
+    "text":         "heldout",
 }
 
 # Seven metrics across the strict-to-coarse spectrum of alignment.
@@ -65,7 +65,7 @@ HELDOUT_SCOPE = {
 # routes_correct / routes_total.
 METRICS = [
     ("R@10",          "$R@10$",            "retrieval (identity)"),
-    ("cat_recall_10", "Cat-recall@10",     "retrieval (class-level)"),
+    ("cat_precision_10", "Cat-prec@10",     "retrieval (class-level)"),
     ("__routes_ratio","Routes (correct/$K_{cl}$)", "routing (cluster-to-cluster)"),
     ("knn_overlap",   "kNN overlap",       "structural (local)"),
     ("ami",           "AMI",               "partition agreement"),

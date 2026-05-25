@@ -146,7 +146,7 @@ def plot_alpha_sweep(df: pd.DataFrame, K_cl: int, out: Path,
     Right panel : cluster NMI, route accuracy, Pearson r, kNN overlap vs α.
 
     Multiple scopes are overlaid in the same panels using line style:
-    aggregate -> dashed, held-out (or heldout_like_c) -> solid.
+    aggregate -> dashed, held-out (or heldout) -> solid.
     Colour encodes metric, marker also encodes metric for distinctness.
 
     `K_focus` filters rows by K when supplied; pass None to plot every row
@@ -161,7 +161,7 @@ def plot_alpha_sweep(df: pd.DataFrame, K_cl: int, out: Path,
     style_for = {
         "aggregate":      dict(linestyle="--", alpha=0.6),
         "heldout":        dict(linestyle="-",  alpha=1.0),
-        "heldout_like_c": dict(linestyle="-",  alpha=1.0),
+        "heldout": dict(linestyle="-",  alpha=1.0),
     }
     ret_metrics = [("R@1", "C0", "o"), ("R@5", "C1", "s"),
                    ("R@10", "C2", "^"), ("R@20", "C3", "D")]
@@ -253,7 +253,7 @@ def emit_exp_d_artifacts(exp_dir: Path) -> None:
 
     Emits a single grid_aggregate.csv with one row per alpha (R@10 and
     routes_correct), plus grid_heldout.csv with the one same-rows-view
-    row tagged 'heldout_like_c'. No sweep.png (no K axis to plot).
+    row tagged 'heldout'. No sweep.png (no K axis to plot).
     """
     name = exp_dir.name
     K_cl = KCL_MAP.get(name, 15)
@@ -273,14 +273,14 @@ def emit_exp_d_artifacts(exp_dir: Path) -> None:
         pd.DataFrame(rows).to_csv(exp_dir / "grid_aggregate.csv", index=False)
         print(f"[grid] wrote {exp_dir / 'grid_aggregate.csv'}")
 
-    cmp = df[df["scope"] == "heldout_like_c"]
+    cmp = df[df["scope"] == "heldout"]
     if not cmp.empty:
         r = cmp.iloc[0]
         pd.DataFrame([{
             "alpha": float(r["alpha"]),
             "cell": f"{r['R@10']:.3f} / {int(r['routes_correct'])}/{K_cl}",
         }]).to_csv(exp_dir / "grid_heldout.csv", index=False)
-        print(f"[grid] wrote {exp_dir / 'grid_heldout.csv'} (heldout_like_c)")
+        print(f"[grid] wrote {exp_dir / 'grid_heldout.csv'} (heldout)")
 
     # α-sweep figure: only for FGW experiments where α actually varies.
     # Experiment D sweeps α in {0, 0.3, 0.5, 0.7, 0.9}; same-rows view
@@ -290,7 +290,7 @@ def emit_exp_d_artifacts(exp_dir: Path) -> None:
     if n_alpha >= 2:
         plot_alpha_sweep(df, K_cl=K_cl,
                          out=exp_dir / "alpha_sweep.png",
-                         scopes=("aggregate", "heldout_like_c"),
+                         scopes=("aggregate", "heldout"),
                          K_focus=None,
                          title=f"{name} — α sweep "
                                "(aggregate dashed; same-rows solid marker at α=0.7)")
@@ -401,7 +401,7 @@ def emit_comparison() -> None:
             rows_str.append(str_row)
 
     # Each "extra" image-audio variant (D, Unsup, Text) is a single-cell
-    # experiment with two scopes: 'aggregate' and 'heldout_like_c'.
+    # experiment with two scopes: 'aggregate' and 'heldout'.
     # We pluck both, format retrieval and structural strings.
     def _extra_cells(df: pd.DataFrame, alpha_filter):
         """Return {ret_agg, ret_hel, str_agg, str_hel} for a single-cell exp.
@@ -430,9 +430,9 @@ def emit_comparison() -> None:
                         f"knn={r['knn_overlap']:.3f} r={r['pearson_r']:.3f}")
         return {
             "ret_agg": pluck("aggregate", ret),
-            "ret_hel": pluck("heldout_like_c", ret_same),
+            "ret_hel": pluck("heldout", ret_same),
             "str_agg": pluck("aggregate", st),
-            "str_hel": pluck("heldout_like_c", st),
+            "str_hel": pluck("heldout", st),
         }
 
     d_cells = _extra_cells(d, lambda a: np.isclose(a, 0.7))
@@ -616,12 +616,12 @@ def emit_grid_plots(grid_dir: Path) -> None:
     # C-direct removed from the suite -- no heatmaps for it.
 
     # C-transitive (identity bridge): heatmaps mirror D.
-    heat("c-transitive", "heldout_like_c", "R@10",
+    heat("c-transitive", "heldout", "R@10",
          "ctrans_R10_heldout.png",
          "Caption-index C-transitive -- R@10 (held-out)",
          cmap="viridis", vmin=0.0, vmax=0.6)
     if has_ami:
-        heat("c-transitive", "heldout_like_c", "ami",
+        heat("c-transitive", "heldout", "ami",
              "ctrans_AMI_heldout.png",
              "Caption-index C-transitive -- AMI (held-out)",
              cmap="magma", vmin=-0.05, vmax=0.6)
@@ -631,7 +631,7 @@ def emit_grid_plots(grid_dir: Path) -> None:
          cmap="viridis", vmin=0.0, vmax=1.0)
 
     # Random baseline: useful for visual reference of the chance floor.
-    heat("random", "heldout_like_c", "R@10",
+    heat("random", "heldout", "R@10",
          "random_R10_heldout.png",
          "Random baseline -- R@10 (held-out, chance floor)",
          cmap="viridis", vmin=0.0, vmax=0.05)
@@ -641,16 +641,16 @@ def emit_grid_plots(grid_dir: Path) -> None:
          "d_R10_aggregate.png",
          "Experiment D — R@10 (aggregate, α=0.7)",
          cmap="viridis", vmin=0.0, vmax=0.6)
-    heat("d", "heldout_like_c", "R@10",
+    heat("d", "heldout", "R@10",
          "d_R10_sameRows.png",
          "Experiment D — R@10 (same-rows view)",
          cmap="viridis", vmin=0.0, vmax=0.6)
-    heat("d", "heldout_like_c", "nmi",
+    heat("d", "heldout", "nmi",
          "d_NMI_sameRows.png",
          "Experiment D — cluster NMI (same-rows, uncorrected)",
          cmap="magma", vmin=0.0, vmax=1.0)
     if has_ami:
-        heat("d", "heldout_like_c", "ami",
+        heat("d", "heldout", "ami",
              "d_AMI_sameRows.png",
              "Experiment D — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
@@ -660,12 +660,12 @@ def emit_grid_plots(grid_dir: Path) -> None:
          "unsup_R10_aggregate.png",
          "Experiment Unsup — R@10 (aggregate, pure GW)",
          cmap="viridis", vmin=0.0, vmax=0.15)
-    heat("unsup", "heldout_like_c", "nmi",
+    heat("unsup", "heldout", "nmi",
          "unsup_NMI_sameRows.png",
          "Experiment Unsup — cluster NMI (same-rows, uncorrected)",
          cmap="magma", vmin=0.0, vmax=1.0)
     if has_ami:
-        heat("unsup", "heldout_like_c", "ami",
+        heat("unsup", "heldout", "ami",
              "unsup_AMI_sameRows.png",
              "Experiment Unsup — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
@@ -676,7 +676,7 @@ def emit_grid_plots(grid_dir: Path) -> None:
          "Text-only baseline — R@10 (aggregate)",
          cmap="viridis", vmin=0.0, vmax=0.6)
     if has_ami:
-        heat("text", "heldout_like_c", "ami",
+        heat("text", "heldout", "ami",
              "text_AMI_sameRows.png",
              "Text-only baseline — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
@@ -684,8 +684,8 @@ def emit_grid_plots(grid_dir: Path) -> None:
     # Delta R@10: C-transitive (held-out_like_c) - Random (held-out_like_c)
     # The "above-chance retrieval signal" carried by the caption-index
     # composition over the no-information floor.
-    sub_c = df[(df["experiment"] == "c-transitive") & (df["scope"] == "heldout_like_c")]
-    sub_r = df[(df["experiment"] == "random") & (df["scope"] == "heldout_like_c")]
+    sub_c = df[(df["experiment"] == "c-transitive") & (df["scope"] == "heldout")]
+    sub_r = df[(df["experiment"] == "random") & (df["scope"] == "heldout")]
     if not sub_c.empty and not sub_r.empty:
         pv_c = sub_c.pivot(index="image_encoder",
                            columns="audio_encoder", values="R@10")
@@ -699,7 +699,7 @@ def emit_grid_plots(grid_dir: Path) -> None:
                  cbar_label="Delta R@10")
 
     # ΔR@10: D (same-rows) − Text-only (same-rows)  (how much FGW adds over raw captions)
-    sub_t = df[(df["experiment"] == "text") & (df["scope"] == "heldout_like_c")]
+    sub_t = df[(df["experiment"] == "text") & (df["scope"] == "heldout")]
     if not sub_d.empty and not sub_t.empty:
         pv_d_sr = sub_d.pivot(index="image_encoder",
                               columns="audio_encoder", values="R@10")
@@ -1304,11 +1304,11 @@ RECIPE_LABELS = {
 # Per-recipe scope to read from the grid CSV (matches the conventions used
 # elsewhere in the chapter).
 RECIPE_SCOPE = {
-    "random":       "heldout_like_c",
-    "c-transitive": "heldout_like_c",
-    "d":            "heldout_like_c",
-    "unsup":        "heldout_like_c",
-    "text":         "heldout_like_c",
+    "random":       "heldout",
+    "c-transitive": "heldout",
+    "d":            "heldout",
+    "unsup":        "heldout",
+    "text":         "heldout",
 }
 
 CAP_COLUMNS = ["cap_cos_argmax", "cap_cos_planmass",

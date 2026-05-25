@@ -73,13 +73,13 @@ from run_experiments import (
 
 
 # Per-experiment scope used to rank cells. C-direct's grid has a true
-# held-out partition; the others have a same-rows (`heldout_like_c`)
+# held-out partition; the others have a same-rows (`heldout`)
 # view that puts D / Unsup / Text on the same 100-row reference.
 EXP_SCOPE = {
     "c-direct": "heldout",
-    "d":        "heldout_like_c",
-    "unsup":    "heldout_like_c",
-    "text":     "heldout_like_c",
+    "d":        "heldout",
+    "unsup":    "heldout",
+    "text":     "heldout",
 }
 
 # Canonical operating point of each experiment.

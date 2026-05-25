@@ -101,7 +101,7 @@ def _cli() -> None:
         "--heldout-idx",
         type=Path,
         default=None,
-        help="optional .npy of column indices defining a 'heldout_like_c' "
+        help="optional .npy of column indices defining a 'heldout' "
         "row subset (rows i with i in S_compare are excluded; rows i not "
         "in S_compare are evaluated).",
     )

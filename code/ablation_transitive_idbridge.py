@@ -138,7 +138,7 @@ def main() -> None:
 
     # Same-rows partition matching D / unsup / text / cosine-bridge
     # C-transitive: rows outside the union of A's and B's K=300 anchor
-    # sets, for direct comparison with the other heldout_like_c rows.
+    # sets, for direct comparison with the other heldout rows.
     S_a = kmeans_stratified_indices(
         X, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
     S_b = kmeans_stratified_indices(
@@ -160,7 +160,7 @@ def main() -> None:
         w.writerow({"K": REUSABLE_K, "alpha": REUSABLE_ALPHA,
                     "scope": "aggregate", **agg})
         w.writerow({"K": REUSABLE_K, "alpha": REUSABLE_ALPHA,
-                    "scope": "heldout_like_c", **hel})
+                    "scope": "heldout", **hel})
 
     np.save(out_dir / "T_transitive_idbridge.npy", T)
     print(f"  wrote {csv_path}")
@@ -175,7 +175,7 @@ def main() -> None:
         print()
         print("  --- side-by-side vs cosine-bridge ---")
         for scope, label in [("aggregate", "aggregate"),
-                             ("heldout", "heldout_like_c")]:
+                             ("heldout", "heldout")]:  # composed scope vs cosine-bridge scope (both renamed from heldout_like_c)
             cos_row = cos[cos.scope == scope]
             if cos_row.empty:
                 cos_row = cos[cos.scope == label]

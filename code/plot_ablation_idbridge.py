@@ -93,7 +93,7 @@ PAIRS = _discover_pairs()
 # (scope-key-in-cosine-csv, scope-key-in-identity-csv, display-label)
 SCOPES = [
     ("aggregate", "aggregate",      "aggregate"),
-    ("heldout",   "heldout_like_c", "held-out"),
+    ("heldout",   "heldout", "held-out"),
 ]
 
 METRICS = [

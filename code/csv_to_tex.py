@@ -315,9 +315,9 @@ def emit_d_vs_gw(out: list[str]) -> None:
     u = pd.read_csv(u_path)
 
     d_agg = _pick_row(d, alpha=0.7, scope="aggregate")
-    d_hel = _pick_row(d, alpha=0.7, scope="heldout_like_c")
+    d_hel = _pick_row(d, alpha=0.7, scope="heldout")
     u_agg = _pick_row(u, alpha=1.0, scope="aggregate")
-    u_hel = _pick_row(u, alpha=1.0, scope="heldout_like_c")
+    u_hel = _pick_row(u, alpha=1.0, scope="heldout")
     if any(r is None for r in (d_agg, d_hel, u_agg, u_hel)):
         return
 
@@ -377,18 +377,18 @@ def emit_ami_interpretation(out: list[str]) -> None:
          "category-level structure of any method in the study."),
         ("D — caption-cost FGW",
          RES / "exp_d" / "sweep.csv",
-         {"alpha": 0.7, "scope": "heldout_like_c"},
+         {"alpha": 0.7, "scope": "heldout"},
          "Moderate--strong: captions transport categorical info from one "
          "modality to the other."),
         ("Pure-GW",
          RES / "exp_unsup" / "sweep.csv",
-         {"alpha": 1.0, "scope": "heldout_like_c"},
+         {"alpha": 1.0, "scope": "heldout"},
          "Moderate--strong: intra-modal geometry alone aligns categories "
          "--- the ``shared relational structure'' claim survives chance "
          "correction."),
         ("Text-only (caption cosine)",
          RES / "exp_text" / "sweep.csv",
-         {"scope": "heldout_like_c"},
+         {"scope": "heldout"},
          "Moderate: raw caption cosine produces real categorical "
          "alignment but less than FGW or text-bridging."),
         ("C-direct (supervised ridge)",

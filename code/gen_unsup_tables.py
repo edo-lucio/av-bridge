@@ -7,7 +7,7 @@ metric columns R@10, NMI, Pearson r at a single chosen scope.
 
 Usage:
   python code/gen_unsup_tables.py                       # aggregate scope (default)
-  python code/gen_unsup_tables.py --scope heldout_like_c
+  python code/gen_unsup_tables.py --scope heldout
 """
 from __future__ import annotations
 
@@ -136,7 +136,7 @@ def render_table(pairs: list[dict], scope: str,
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scope", default="aggregate",
-                    choices=["aggregate", "heldout_like_c"])
+                    choices=["aggregate", "heldout"])
     args = ap.parse_args()
     print(f"% --- Pure-GW two-pair table (scope={args.scope}) ---")
     print(render_table(PAIRS, args.scope))

@@ -59,11 +59,11 @@ RECIPE_LABELS = {
 }
 
 RECIPE_SCOPE = {
-    "random":       "heldout_like_c",
-    "c-transitive": "heldout_like_c",
-    "d":            "heldout_like_c",
-    "unsup":        "heldout_like_c",
-    "text":         "heldout_like_c",
+    "random":       "heldout",
+    "c-transitive": "heldout",
+    "d":            "heldout",
+    "unsup":        "heldout",
+    "text":         "heldout",
 }
 
 
@@ -273,8 +273,8 @@ STRUCT_AXES = [
 Y_AXES = [
     {"col": "R@10",            "label": "identity: $R@10$",
      "slug": "R10"},
-    {"col": "cat_recall_10",   "label": "class retrieval: cat-recall@10",
-     "slug": "cat_recall_10"},
+    {"col": "cat_precision_10",   "label": "class retrieval: cat-prec@10",
+     "slug": "cat_precision_10"},
     {"col": "__routes_ratio",  "label": "routing: routes correct / $K_{cl}$",
      "slug": "routes_ratio"},
     {"col": "cap_cos_lift",    "label": "semantic: caption-cosine lift",
@@ -399,7 +399,7 @@ def emit_structure_vs_semantics(
     quantitative rather than visual.
 
     Y axes span the strict-to-coarse spectrum of alignment quality:
-    identity ($R@10$), class retrieval (cat-recall@10), cluster routing
+    identity ($R@10$), class retrieval (cat-prec@10), cluster routing
     (routes correct / $K_{cl}$), and external semantic agreement
     (caption-cosine lift). Splitting one panel per file makes each
     relationship easier to read than the previous 2x2 grid."""
@@ -421,7 +421,7 @@ def emit_structure_vs_semantics(
                 "family": _encoder_family(r["image_encoder"],
                                           r["audio_encoder"]),
                 "R@10":            r.get("R@10",            float("nan")),
-                "cat_recall_10":   r.get("cat_recall_10",   float("nan")),
+                "cat_precision_10":   r.get("cat_precision_10",   float("nan")),
                 "__routes_ratio":  r.get("__routes_ratio",  float("nan")),
                 "ami":             r.get("ami",             float("nan")),
                 "pearson_r":       r.get("pearson_r",       float("nan")),

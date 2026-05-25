@@ -91,8 +91,16 @@ python code/plots.py --exp grid
 echo "=== 2c. geometry (CKA, identity Pearson) -- must precede tradeoff ==="
 python code/analyse_geometry.py
 
+echo "=== 2c.1 CKA vs retrieval scatter (per encoder pair, per recipe) ==="
+python code/plot_cka_vs_retrieval.py --scope heldout
+python code/plot_cka_vs_retrieval.py --scope aggregate
+
 echo "=== 2d. rank-CDF (overlays both pairs) ==="
 python code/analyse_ranks.py
+
+echo "=== 2d.1 rank-distribution summary (bars, both scopes) ==="
+python code/plot_rank_summary.py --scope heldout
+python code/plot_rank_summary.py --scope aggregate
 
 echo "=== 2e. multi-granularity AMI / category-recall ==="
 python code/analyse_levels.py
@@ -103,10 +111,10 @@ python code/analyse_tradeoff.py
 echo "=== 2f.1 all-recipes full-vs-heldout comparison ==="
 python code/plot_full_vs_heldout.py
 
-echo "=== 2f.2 transitive K-sweep at alpha=0.7 (and 0.5, 0.3) ==="
-python code/plot_transitive_K_sweep.py --alpha 0.7
-python code/plot_transitive_K_sweep.py --alpha 0.5
-python code/plot_transitive_K_sweep.py --alpha 0.3
+echo "=== 2f.2 transitive K-sweep at every alpha in the sweep grid ==="
+for a in 0.0 0.3 0.5 0.7 0.9; do
+    python code/plot_transitive_K_sweep.py --alpha "$a"
+done
 
 echo "=== 2f.3 extended core-set metrics table (canonical pair) ==="
 # Reads per-(K, alpha) plans from results/exp_*/plans/ and the
@@ -116,6 +124,33 @@ python code/extended_metrics_table.py
 
 echo "=== 2f.4 core-set scatter from the extended table ==="
 python code/plot_extended_table.py
+
+echo "=== 2f.5 alpha sweep: both regimes overlaid (Transitive at K=300) ==="
+python code/plot_alpha_sweep.py --K 300
+
+echo "=== 2f.6 per-leg alpha sweep: both regimes overlaid (legs A + B) ==="
+python code/plot_legs_alpha_sweep.py --K 300
+
+echo "=== 2f.7 coarse-to-fine alpha sweep, all recipes overlaid ==="
+python code/plot_coarse_to_fine_alpha.py --K 300
+
+echo "=== 2f.8 transitive alpha sweep at K=300 (in-formulation references) ==="
+python code/plot_transitive_alpha_sweep.py --K 300
+
+echo "=== 2f.9 per-leg retrieval vs alpha (linear-fit diagnostic) ==="
+python code/plot_legs_alpha_linear.py --K 300
+
+echo "=== 2f.10 FGW smoothing diagnostic (leg row entropy vs composed R@10) ==="
+python code/plot_entropy_smoothing.py --K 300
+
+echo "=== 2f.11 sharp/wide diagnostics: support, decay, diagonal mass, leg agreement ==="
+python code/plot_effective_support.py --K 300
+python code/plot_row_decay_profile.py --K 300
+python code/plot_diagonal_mass.py --K 300
+python code/plot_leg_topk_agreement.py --K 300
+
+echo "=== 2f.12 spread of legs vs composed retrieval (inverted-U mediator plot) ==="
+python code/plot_spread_vs_retrieval.py --K 300
 
 echo "=== 2g. qualitative panels (canonical + text-free, both directions) ==="
 python code/qualitative_panel.py --direction image_to_audio
