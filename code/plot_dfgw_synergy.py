@@ -62,7 +62,6 @@ PAIRS = {
     },
 }
 
-# (csv column, display label, synergy expected?)
 # Special key ``__precision_10`` is computed inline as R@10 / 10 ---
 # instance precision@10 under single-ground-truth-per-query.
 METRICS = [
@@ -113,7 +112,6 @@ def render(out_path: Path, scope: str) -> None:
             suffix = pair_spec["suffix"]
             color = pair_spec["color"]
 
-            # Caption-Distance FGW alpha sweep.
             xs, ys = _series(
                 RES / f"exp_d{suffix}" / "sweep.csv", scope, col)
             if not xs.size:
@@ -123,8 +121,6 @@ def render(out_path: Path, scope: str) -> None:
                     color=color, zorder=4,
                     label=f"exp_d $\\alpha$-sweep ({pair_key})")
 
-            # Mark the peak; collect for the per-panel α★ legend in the
-            # bottom-right corner (avoids overlap with the panel title).
             if np.any(np.isfinite(ys)):
                 i_peak = int(np.nanargmax(ys))
                 x_peak = xs[i_peak]
@@ -134,7 +130,6 @@ def render(out_path: Path, scope: str) -> None:
                            linewidth=0.9, zorder=6)
                 peaks.append((pair_key, x_peak, color))
 
-            # Pure-GW endpoint at alpha = 1 (single marker).
             v_gw = _series(
                 RES / f"exp_unsup{suffix}" / "sweep.csv",
                 scope, col, alpha=1.0)
@@ -143,14 +138,10 @@ def render(out_path: Path, scope: str) -> None:
                         color=color, markeredgecolor="black",
                         markeredgewidth=0.7, linestyle="None",
                         zorder=5)
-                # Visually connect the alpha = 0.9 cell to the
-                # alpha = 1 endpoint so the cliff (or rise) is read
-                # as continuous.
                 ax.plot([xs[-1], 1.0], [ys[-1], v_gw],
                         color=color, lw=1.2, ls=(0, (1, 1)),
                         alpha=0.55, zorder=3)
 
-            # Text-only horizontal reference.
             v_text = _series(
                 RES / f"exp_text{suffix}" / "sweep.csv", scope, col)
             if isinstance(v_text, tuple):
@@ -159,7 +150,6 @@ def render(out_path: Path, scope: str) -> None:
                 ax.axhline(v_text, color=color, lw=1.0, ls="--",
                            alpha=0.5, zorder=2)
 
-            # Random horizontal reference.
             v_rand = _series(
                 RES / f"exp_random{suffix}" / "sweep.csv", scope, col)
             if isinstance(v_rand, tuple):
@@ -168,7 +158,6 @@ def render(out_path: Path, scope: str) -> None:
                 ax.axhline(v_rand, color=color, lw=1.0, ls=":",
                            alpha=0.4, zorder=1)
 
-        # Cosmetic.
         ax.set_xticks(ALPHA_GRID + [1.0])
         ax.set_xticklabels(
             [f"{a:.1f}" for a in ALPHA_GRID] + ["1.0\n(Pure-GW)"],
@@ -182,9 +171,6 @@ def render(out_path: Path, scope: str) -> None:
         ax.grid(True, which="both", alpha=0.25)
         sns.despine(ax=ax)
 
-        # Per-panel peak-alpha legend in the bottom-left corner. One
-        # line per regime, regime-coloured. Kept out of the title area
-        # at the top and away from the Pure-GW X markers on the right.
         for i, (pair_key, x_peak, color) in enumerate(peaks):
             ax.text(
                 0.03, 0.04 + i * 0.07,
@@ -201,7 +187,6 @@ def render(out_path: Path, scope: str) -> None:
         plt.close(fig)
         return
 
-    # Bottom legend, neutral colour.
     handles = [
         Line2D([], [], color="black", lw=1.8, marker="o",
                label=r"exp\_d $\alpha$-sweep ($\alpha \in [0, 0.9]$)"),

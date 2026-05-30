@@ -48,9 +48,6 @@ ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "results"
 
 
-# ---------------------------------------------------------------------------
-# LaTeX rendering helpers
-# ---------------------------------------------------------------------------
 def _clean_header(name: str) -> str:
     """Replace underscores and a few CSV quirks with LaTeX-friendly tokens."""
     return (
@@ -129,9 +126,6 @@ def render_table(df: pd.DataFrame, caption: str, label: str,
     return open_env + inner + close_env
 
 
-# ---------------------------------------------------------------------------
-# Per-CSV builders
-# ---------------------------------------------------------------------------
 def emit_comparison(out: list[str]) -> None:
     """Cross-method comparison tables (retrieval + structure)."""
     out.append("% =====================================================================\n"
@@ -476,9 +470,6 @@ def emit_scatter_r(out: list[str]) -> None:
                             small=True, resize=False))
 
 
-# ---------------------------------------------------------------------------
-# Driver
-# ---------------------------------------------------------------------------
 HEADER = r"""% =====================================================================
 % tables.tex
 % Auto-generated from the CSVs under results/.  Re-run with:

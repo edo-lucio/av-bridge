@@ -115,7 +115,6 @@ def _fix_audio(wav: np.ndarray, sr: int, duration_s: float = 10.0) -> np.ndarray
     return out
 
 
-# --- Vision -----------------------------------------------------------------
 def encode_vision_auto_pooler(hf_id: str, manifest: list[dict]) -> np.ndarray:
     from transformers import AutoImageProcessor, AutoModel
     proc = AutoImageProcessor.from_pretrained(hf_id)
@@ -176,7 +175,6 @@ VISION_DISPATCH = {
 }
 
 
-# --- Audio ------------------------------------------------------------------
 def encode_audio_clap(hf_id: str, manifest: list[dict], sr: int = 48000) -> np.ndarray:
     """CLAP audio embedder.
 
@@ -238,7 +236,6 @@ AUDIO_DISPATCH = {
 }
 
 
-# --- Text -------------------------------------------------------------------
 def _mean_pool(last_hidden: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
     """Mean-pool token embeddings with attention mask. Matches the pooling that
     sentence-transformers/all-MiniLM-L6-v2 uses internally."""
@@ -269,7 +266,6 @@ def encode_text_pool(manifest: list[dict], field: str) -> np.ndarray:
             ).to(DEVICE)
             out = model(**enc)
             per_caption = _mean_pool(out.last_hidden_state, enc["attention_mask"])
-            # Average the per-caption vectors into one per-clip vector.
             feats.append(per_caption.mean(dim=0).cpu().numpy())
     del model
     if DEVICE == "cuda":
@@ -277,7 +273,6 @@ def encode_text_pool(manifest: list[dict], field: str) -> np.ndarray:
     return np.stack(feats).astype(np.float32)
 
 
-# --- Driver -----------------------------------------------------------------
 def encode_and_save(
     out_path: Path,
     fn,

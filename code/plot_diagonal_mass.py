@@ -59,8 +59,8 @@ PAIRS = {
     },
 }
 
-COL_DIAG = "#1f77b4"   # blue, mean diagonal mass
-COL_R10  = "#d62728"   # red, R@10
+COL_DIAG = "#1f77b4"
+COL_R10  = "#d62728"
 
 
 def _mean_diag(T: np.ndarray) -> float:

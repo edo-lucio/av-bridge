@@ -47,7 +47,6 @@ PLOT_DIR = RES / "exp_grid" / "plots"
 ALPHA_GRID = [0.0, 0.3, 0.5, 0.7, 0.9]
 
 
-# Encoder pairs and their suffix conventions.
 PAIRS = {
     "canonical": {"suffix": "",
                   "label":  "text-grounded (CLIP-L $\\times$ CLAP-unfused)"},
@@ -55,7 +54,6 @@ PAIRS = {
                   "label":  "text-free (DINOv2-L $\\times$ MERT-330m)"},
 }
 
-# Metrics: (csv_column, display_label, axis_lo, axis_hi_or_None).
 # Bounds None so the y-axis auto-fits the data range, including
 # negative Pearson r at small held-out sizes.
 METRICS = [
@@ -67,11 +65,11 @@ METRICS = [
 
 
 PALETTE = {
-    "c-transitive": "#2a7fff",   # blue, the protagonist
-    "random":       "#777777",   # grey
-    "d":            "#dd8452",   # orange
-    "unsup":        "#55a868",   # green
-    "text":         "#c44e52",   # red
+    "c-transitive": "#2a7fff",
+    "random":       "#777777",
+    "d":            "#dd8452",
+    "unsup":        "#55a868",
+    "text":         "#c44e52",
 }
 
 
@@ -148,7 +146,6 @@ def render(out_path: Path, pair_keys: list[str],
                         ls="--", color=PALETTE["c-transitive"], alpha=0.4,
                         label="Transitive (in-sample)")
 
-            # Transitive held-out curve.
             if not df_tr.empty:
                 ys = [_metric_from_row(r, col) for _, r in df_tr.iterrows()]
                 xs = df_tr["alpha"].values
@@ -156,7 +153,6 @@ def render(out_path: Path, pair_keys: list[str],
                         color=PALETTE["c-transitive"],
                         label="Transitive (held-out)")
 
-            # Caption-Distance FGW curve at the same scope.
             if not df_d.empty:
                 ys = [_metric_from_row(r, col) for _, r in df_d.iterrows()]
                 xs = df_d["alpha"].values
@@ -164,13 +160,11 @@ def render(out_path: Path, pair_keys: list[str],
                         ls="--", color=PALETTE["d"], alpha=0.85,
                         label="Caption Distance FGW")
 
-            # Random horizontal reference (no alpha dependence).
             v = _load_single_value("random", suffix, scope, col)
             if np.isfinite(v):
                 ax.axhline(v, color=PALETTE["random"], linestyle=":",
                            lw=1.4, alpha=0.85, label="Random (baseline)")
 
-            # Pure-GW single marker at alpha = 1.
             v = _load_single_value("unsup", suffix, scope, col)
             if np.isfinite(v):
                 ax.plot(1.0, v, marker="*", markersize=13,
@@ -178,7 +172,6 @@ def render(out_path: Path, pair_keys: list[str],
                         markeredgewidth=0.5, linestyle="None",
                         label=r"Pure-GW ($\alpha = 1$)")
 
-            # Text-only horizontal reference (no alpha dependence).
             v = _load_single_value("text", suffix, scope, col)
             if np.isfinite(v):
                 ax.axhline(v, color=PALETTE["text"],
@@ -214,7 +207,6 @@ def render(out_path: Path, pair_keys: list[str],
         plt.close(fig)
         return
 
-    # Shared bottom legend from the first non-empty panel.
     handles, labels = [], []
     for ax in axes.flat:
         h, l = ax.get_legend_handles_labels()

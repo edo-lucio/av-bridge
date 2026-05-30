@@ -74,7 +74,6 @@ def _topk_agreement(T_iv: np.ndarray, T_ac: np.ndarray,
         return float("nan")
     n_rows, n_cols = T_iv.shape
     k = min(k, n_cols)
-    # For each row i, leg A's top-k caption indices and leg B's top-k.
     topk_iv = np.argpartition(-T_iv, k - 1, axis=1)[:, :k]
     topk_ac = np.argpartition(-T_ac, k - 1, axis=1)[:, :k]
     overlaps = np.empty(n_rows)

@@ -42,7 +42,6 @@ RES = ROOT / "results"
 PLOT_DIR = RES / "exp_grid" / "plots"
 
 
-# Reference pairs and the suffix used in directory names.
 PAIRS = [
     {"label": "text-grounded (CLIP-L/14 + CLAP-HTSAT-unfused)",
      "short": "canonical",
@@ -55,13 +54,15 @@ PAIRS = [
 ]
 
 
-# Per-recipe plan filename (within whichever exp_*<suffix> directory).
 RECIPES = [
     {"label": "Random (baseline)",            "exp": "exp_random", "file": "T_random.npy"},
     {"label": "Transitive Transport Bridge",  "exp": "exp_c",      "file": "T_transitive.npy"},
     {"label": "Caption Distance FGW",         "exp": "exp_d",      "file": "T_caption.npy"},
     {"label": "GW (intra-modal geometry)",    "exp": "exp_unsup",  "file": "T_gw.npy"},
     {"label": "Raw caption cosine (ceiling)", "exp": "exp_text",   "file": "T_text.npy"},
+    {"label": "C-MCR (learned text bridge)",  "exp": "exp_cmcr",   "file": "T_cmcr.npy"},
+    {"label": "Procrustes (rigid supervised)", "exp": "exp_procrustes", "file": "T_procrustes.npy"},
+    {"label": "Direct ridge (supervised)",     "exp": "exp_direct",     "file": "T_direct.npy"},
 ]
 
 
@@ -80,7 +81,6 @@ def main(transitive_alpha: float | None = None, K: int = 300,
     # canonical artefacts are never overwritten.
     PLOT_DIR.mkdir(parents=True, exist_ok=True)
     records: list[pd.DataFrame] = []
-    # (recipe_label, pair_label, linestyle, ranks_all, ranks_heldout, n)
     plot_data: list[tuple[str, str, str, np.ndarray, np.ndarray, int]] = []
     n_global: int | None = None
 
@@ -149,7 +149,6 @@ def main(transitive_alpha: float | None = None, K: int = 300,
     alpha_note = (rf"  (Transitive at $\alpha={transitive_alpha:.1f}$)"
                   if transitive_alpha is not None else "")
 
-    # Per-recipe colour so the same recipe's two curves share a hue.
     recipe_labels = list(dict.fromkeys(r["label"] for r in RECIPES))
     palette = dict(zip(recipe_labels,
                        sns.color_palette("colorblind",
@@ -181,8 +180,6 @@ def main(transitive_alpha: float | None = None, K: int = 300,
         ax.grid(True, which="both", alpha=0.3)
         sns.despine(ax=ax)
 
-        # Two-part legend: one block for recipe (hue), one for pair
-        # (linestyle).
         recipe_handles = [
             mlines.Line2D([], [], color=palette[r], lw=1.6, label=r)
             for r in recipe_labels
@@ -214,7 +211,6 @@ def main(transitive_alpha: float | None = None, K: int = 300,
     _render(f"rank_distribution_heldout{out_suffix}.png", "heldout",
             "  (held-out, cross-recipe)" + alpha_note)
 
-    # Side-by-side comparison: aggregate (smooth) vs heldout (noisy).
     def _render_compare(out_name: str) -> None:
         fig, axes = plt.subplots(1, 2, figsize=(14, 5.4),
                                  sharey=True, squeeze=False)
@@ -249,7 +245,6 @@ def main(transitive_alpha: float | None = None, K: int = 300,
             ax.grid(True, which="both", alpha=0.3)
             sns.despine(ax=ax)
 
-        # Shared bottom legend: recipe (hue) + pair (linestyle).
         recipe_handles = [
             mlines.Line2D([], [], color=palette[r], lw=1.6, label=r)
             for r in recipe_labels

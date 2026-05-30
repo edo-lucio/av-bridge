@@ -98,6 +98,79 @@ METRIC_COLS = [
     ("cat_precision_10", r"Cat-prec@10"),
 ]
 
+SPREAD_METRICS = {
+    "support": {
+        "col":   "support",
+        "label": r"effective support  $e^{\bar H}$  "
+                 r"(audio candidates per query row)",
+        "log":   True,
+        "invert": False,
+    },
+    "top1mass": {
+        "col":   "top1mass",
+        "label": "mean mass on each query's single best candidate\n"
+                 r"($1.0$ = hard 1-to-1 guess; lower = mass shared $\to$)",
+        "log":   False,
+        "invert": True,
+    },
+}
+
+
+def _spike_uniform_top1(H: float, N: int) -> float:
+    """Top-1 mass of a row [p, (1-p)/(N-1) x (N-1)] with mean entropy H.
+
+    Fallback only: used when a saved plan file is corrupt (the alpha=0
+    Sinkhorn plan was persisted as zeros), so top-1 mass cannot be read off
+    the plan directly. Exact for the spike+uniform family and tight when H
+    is small -- which is exactly the near-hard regime where it is needed.
+    """
+    import math
+    if H <= 1e-9 or N <= 1:
+        return 1.0
+    lo, hi = 1.0 / N, 1.0 - 1e-12
+
+    def ent(p: float) -> float:
+        if p >= 1.0:
+            return 0.0
+        q = (1.0 - p) / (N - 1)
+        return -(p * math.log(p) + (1.0 - p) * math.log(q))
+
+    for _ in range(100):                 # ent is decreasing in p on [1/N, 1]
+        mid = 0.5 * (lo + hi)
+        if ent(mid) > H:                 # still too spread -> raise p
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _attach_top1mass(df: pd.DataFrame, recipe: dict, suffix: str,
+                     K: int) -> pd.DataFrame:
+    """Add a ``top1mass`` column: mean over rows of the row-normalised
+    plan's largest entry, read from the per-alpha plan on disk (entropy
+    fallback for any corrupt/missing plan file)."""
+    plans = RES / f"{recipe['exp']}{suffix}" / "plans"
+    out = []
+    for _, row in df.iterrows():
+        a = float(row["alpha"])
+        fp = (plans / f"T__K{int(K)}__a{a:.2f}.npy") if recipe["use_K"] \
+            else (plans / f"T__a{a:.2f}.npy")
+        top1, N = float("nan"), 400
+        if fp.exists():
+            T = np.load(fp).astype(float)
+            N = T.shape[1]
+            rs = T.sum(axis=1, keepdims=True)
+            if float(np.nansum(T)) > 1e-9:
+                ok = rs[:, 0] > 1e-9
+                if ok.any():
+                    top1 = float((T[ok] / rs[ok]).max(axis=1).mean())
+        if not np.isfinite(top1):        # corrupt/missing plan -> fallback
+            top1 = _spike_uniform_top1(float(row["plan_row_entropy"]), N)
+        out.append(top1)
+    df = df.copy()
+    df["top1mass"] = out
+    return df
+
 
 def _load(recipe: dict, suffix: str, K: int, scope: str) -> pd.DataFrame | None:
     csv = RES / f"{recipe['exp']}{suffix}" / recipe["csv"]
@@ -117,10 +190,12 @@ def _load(recipe: dict, suffix: str, K: int, scope: str) -> pd.DataFrame | None:
     return df
 
 
-def render(out_path: Path, recipe: dict, K: int, scope: str) -> None:
+def render(out_path: Path, recipe: dict, K: int, scope: str,
+           spread: dict) -> None:
     n_cols = len(METRIC_COLS)
     fig, axes = plt.subplots(1, n_cols, figsize=(7.2 * n_cols, 5.6),
                              squeeze=False)
+    xcol = spread["col"]
 
     any_data = False
     legend_seen: set[str] = set()
@@ -132,7 +207,9 @@ def render(out_path: Path, recipe: dict, K: int, scope: str) -> None:
             df = _load(recipe, pair_spec["suffix"], K, scope)
             if df is None or metric_col not in df.columns:
                 continue
-            xs = df["support"].values.astype(float)
+            if xcol == "top1mass":
+                df = _attach_top1mass(df, recipe, pair_spec["suffix"], K)
+            xs = df[xcol].values.astype(float)
             ys = df[metric_col].values.astype(float)
             alphas = df["alpha"].values.astype(float)
             color = pair_spec["color"]
@@ -156,13 +233,14 @@ def render(out_path: Path, recipe: dict, K: int, scope: str) -> None:
                        facecolor=color, edgecolor="black",
                        linewidth=0.9, zorder=6)
 
-        ax.set_xscale("log")
-        ax.set_xlabel(rf"{recipe['plan']} effective support  "
-                      r"$e^{\bar H}$  (audio candidates per query row)",
-                      fontsize=10)
+        if spread["log"]:
+            ax.set_xscale("log")
+        ax.set_xlabel(spread["label"], fontsize=10)
         ax.set_ylabel(metric_label, fontsize=10)
         ax.set_title(metric_label, fontsize=11)
         ax.grid(True, which="both", alpha=0.3)
+        if spread["invert"]:
+            ax.invert_xaxis()
         sns.despine(ax=ax)
 
     if not any_data:
@@ -204,13 +282,18 @@ def main() -> None:
     ap.add_argument("--K", type=int, default=300)
     ap.add_argument("--scope", default="heldout",
                     choices=["aggregate", "heldout"])
+    ap.add_argument("--spread-metric", default="support",
+                    choices=list(SPREAD_METRICS.keys()),
+                    help="x-axis spread measure (default: support e^H)")
     ap.add_argument("--out", type=str, default=None)
     args = ap.parse_args()
     recipe = RECIPES[args.recipe]
-    default_name = f"{recipe['out']}__K{args.K}.png" \
-        if recipe["use_K"] else f"{recipe['out']}.png"
+    spread = SPREAD_METRICS[args.spread_metric]
+    tag = "" if args.spread_metric == "support" else f"__{args.spread_metric}"
+    default_name = f"{recipe['out']}{tag}__K{args.K}.png" \
+        if recipe["use_K"] else f"{recipe['out']}{tag}.png"
     out = Path(args.out) if args.out else PLOT_DIR / default_name
-    render(out, recipe, args.K, args.scope)
+    render(out, recipe, args.K, args.scope, spread)
 
 
 if __name__ == "__main__":

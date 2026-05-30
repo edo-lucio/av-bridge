@@ -48,7 +48,6 @@ def main() -> None:
     n_total = Y.shape[0]
     print(f"[sample] Y from {Y_path.name}, shape {Y.shape}")
 
-    # K-means with K = n clusters; pick the medoid of each cluster.
     km = KMeans(n_clusters=args.n, random_state=args.seed, n_init=10)
     labels = km.fit_predict(Y)
     centroids = km.cluster_centers_
@@ -57,11 +56,9 @@ def main() -> None:
         members = np.where(labels == c)[0]
         if members.size == 0:
             continue
-        # Pick the cluster member closest to its centroid.
         d = np.linalg.norm(Y[members] - centroids[c], axis=1)
         chosen_rows.append(int(members[d.argmin()]))
 
-    # Read clip_ids in manifest row order.
     manifest_csv = DATA / "manifest.csv"
     clip_ids: list[str] = []
     with manifest_csv.open() as f:

@@ -4,14 +4,25 @@
 #SBATCH --error=logs/analyse_%j.err
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=16G
-#SBATCH --time=00:30:00
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=01:30:00
 #SBATCH --partition=scavenge
 #SBATCH --mail-user=edlu@itu.dk
 #SBATCH --mail-type=FAIL
 
-set -e
+# Plots-only pipeline: regenerates EVERY figure/table from artifacts already
+# on disk (sweep CSVs, T_*.npy plans, embeddings/, exp_grid/sweep.csv).
+# It runs NO experiments -- use this to refresh plots after a code change
+# without re-running the FGW sweeps or the encoder grid.
+#
+# A figure only shows a method whose artifacts exist: the new baselines
+# (Procrustes / Direct ridge / C-MCR) appear once their exp_*/T_*.npy are
+# present (run `--exp procrustes|direct|cmcr` once; the grid-based
+# full_vs_heldout needs `--exp grid` re-run to include them).
+#
+# set +e: each step is independent, so a missing input or a single failing
+# script surfaces in the log without killing the rest.
 set -x
 
 PROJECT_DIR="$HOME/av-bridge"
@@ -21,28 +32,101 @@ module load Miniconda3/25.5.1-1
 source /opt/itu/easybuild/software/Miniconda3/25.5.1-1/etc/profile.d/conda.sh
 conda activate "$ENV_PATH"
 cd "$PROJECT_DIR"
-mkdir -p logs
+mkdir -p logs results/exp_grid/plots results/comparison_plots results/plots
 
-# Geometric similarity between every image/audio encoder pair.
-# Outputs: cka_heatmap.png, identity_pearson_heatmap.png,
-#          geometric_similarity.csv
+set +e
+
+echo "=== per-experiment plots + comparison tables + confusion + scatter ==="
+python code/plots.py --exp all --comparison
+echo "=== grid plots ==="
+python code/plots.py --exp grid
+
+echo "=== geometry (CKA, identity Pearson) -- must precede CKA/tradeoff ==="
 python code/analyse_geometry.py
+python code/plot_cka_vs_retrieval.py --scope heldout
+python code/plot_cka_vs_retrieval.py --scope aggregate
 
-# Empirical CDF of GT-partner rank under each saved plan.
-# Outputs: rank_distribution.png, rank_distributions.csv
+echo "=== rank-CDF + rank-distribution summary ==="
 python code/analyse_ranks.py
+python code/plot_rank_summary.py --scope heldout
+python code/plot_rank_summary.py --scope aggregate
 
-# Multi-granularity AMI and category-recall@K: answers ``do the recipes
-# retrieve semantically meaningful information at coarser abstraction
-# levels even when instance retrieval fails?''
-# Outputs: levels_ami_vs_kcl.png, levels_category_recall_at_k.png,
-#          levels_ami.csv, levels_category_recall.csv
-python code/analyse_levels.py
+echo "=== multi-granularity AMI / category precision (both encoder pairs) ==="
+python code/analyse_levels.py --pair text-grounded --cat-kcl 5 10 15
+python code/analyse_levels.py --pair text-free --cat-kcl 5 10 15
+python code/plot_levels_category_precision_panel.py
 
+echo "=== structure-vs-semantic trade-off + full-vs-heldout ==="
+python code/analyse_tradeoff.py
+python code/plot_full_vs_heldout.py
+
+echo "=== transitive K-sweep per alpha ==="
+for a in 0.0 0.3 0.5 0.7 0.9; do
+    python code/plot_transitive_K_sweep.py --alpha "$a"
+done
+
+echo "=== core-set metrics table + scatter ==="
+python code/extended_metrics_table.py
+python code/plot_extended_table.py
+
+echo "=== alpha / leg sweeps ==="
+python code/plot_alpha_sweep.py --K 300
+python code/plot_legs_alpha_sweep.py --K 300
+python code/plot_coarse_to_fine_alpha.py --K 300
+python code/plot_transitive_alpha_sweep.py --K 300
+python code/plot_legs_alpha_linear.py --K 300
+
+echo "=== sharp/wide diagnostics ==="
+python code/plot_entropy_smoothing.py --K 300
+python code/plot_effective_support.py --K 300
+python code/plot_row_decay_profile.py --K 300
+python code/plot_row_decay_profile.py --K 300 --kcl 5
+python code/plot_row_decay_profile.py --K 300 --kcl 10
+python code/plot_diagonal_mass.py --K 300
+python code/plot_leg_topk_agreement.py --K 300
+python code/plot_spread_vs_retrieval.py --K 300
+
+echo "=== mediator / synergy / lift figures (added during analysis) ==="
+python code/plot_composed_spread_benefit.py --recipe transitive --K 300 --scope heldout
+python code/plot_composed_spread_benefit.py --recipe caption --scope heldout
+python code/plot_alpha_recipe_compare.py --K 300 --scope heldout
+python code/plot_alpha_recipe_compare.py --K 300 --scope aggregate
+python code/plot_transitive_synergy.py --scope aggregate --K 300
+python code/plot_transitive_synergy.py --scope heldout --K 300
+python code/plot_gap_to_oracle.py --scope heldout
+python code/plot_gap_to_oracle.py --scope aggregate
+python code/plot_gw_lift.py --recipe caption --scope aggregate
+python code/plot_gw_lift.py --recipe transitive --scope aggregate
+python code/plot_gw_lift_curve.py --recipe caption --scope aggregate
+python code/plot_gw_lift_curve.py --recipe transitive --scope aggregate
+python code/plot_geometry_vs_semantics.py --recipe caption --scope aggregate
+python code/plot_geometry_vs_semantics.py --recipe caption --scope heldout
+python code/plot_geometry_vs_semantics.py --recipe transitive --scope heldout
+python code/plot_mass_dispersion_panel.py --recipe transitive --K 300
+python code/plot_mass_dispersion_panel.py --recipe caption
+
+echo "=== latent geometry: embedding maps (UMAP + t-SNE) ==="
+python code/plot_embedding_maps.py --pair text-grounded
+python code/plot_embedding_maps.py --pair text-free
+
+echo "=== latent geometry: t-SNE cluster panel (geometry mismatch / pure-GW) ==="
+python code/plot_tsne_cluster_panel.py --pair text-grounded
+python code/plot_tsne_cluster_panel.py --pair text-free
+
+echo "=== latent geometry: transport panels (recovered OT alignment) ==="
+python code/plot_transport_maps.py --pair text-grounded --recipe transitive --K 300 --alpha 0.5
+python code/plot_transport_maps.py --pair text-grounded --recipe caption --alpha 0.5
+python code/plot_transport_maps.py --pair text-free --recipe transitive --K 300 --alpha 0.9
+python code/plot_transport_maps.py --pair text-free --recipe caption --alpha 0.9
+
+echo "=== qualitative panels + A/B grid tables + best plans + chapter ==="
+python code/qualitative_panel.py --direction image_to_audio
+python code/qualitative_panel.py --direction audio_to_image
+python code/gen_ab_grids.py
+python code/render_best_plans.py
+python code/gen_results_chapter.py
+
+echo "=== inventory ==="
+ls -1 results/exp_grid/plots/*.png 2>/dev/null | wc -l \
+    | xargs printf 'grid plots: %s PNGs\n'
 echo "[done] analysis figures written to results/exp_grid/plots/"
-ls -1 results/exp_grid/plots/cka_heatmap.png \
-      results/exp_grid/plots/identity_pearson_heatmap.png \
-      results/exp_grid/plots/rank_distribution.png \
-      results/exp_grid/plots/levels_ami_vs_kcl.png \
-      results/exp_grid/plots/levels_category_recall_at_k.png \
-      2>/dev/null || true

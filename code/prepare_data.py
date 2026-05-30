@@ -32,7 +32,6 @@ random.seed(SEED)
 np.random.seed(SEED)
 
 
-# Map split label -> directory containing the .mp4 files.
 RAW_VIDEO_DIRS = {
     "val": ROOT / "val_videos" / "val_videos",
     "test": ROOT / "test_videos" / "test_videos",

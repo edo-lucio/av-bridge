@@ -1,7 +1,0 @@
-method,exp_a_agg,exp_a_hel,exp_b_agg,exp_b_hel,exp_c_direct_agg,exp_c_direct_hel,exp_d_agg,exp_d_hel,exp_unsup_agg,exp_unsup_hel,exp_text_agg,exp_text_hel
-elbow@a=0.5,0.998 / 9/10,nan / 0/10,0.713 / 15/20,nan / 0/20,0.077 / 5/15,0.059 / 7/15,0.225 / 7/15,0.267 / 7/15 (same-rows),0.020 / 3/15,0.067 / 2/15 (same-rows),0.233 / 2/15,0.300 / 5/15 (same-rows)
-K=300@a=0.5,0.945 / 8/10,0.780 / 7/10,0.635 / 14/20,0.340 / 7/20,0.608 / 6/15,0.060 / 6/15,0.225 / 7/15,0.267 / 7/15 (same-rows),0.020 / 3/15,0.067 / 2/15 (same-rows),0.233 / 2/15,0.300 / 5/15 (same-rows)
-C-transitive,—,—,—,—,0.175 / 6/15 (transitive),0.067 / 5/15,0.225 / 7/15,0.267 / 7/15 (same-rows),0.020 / 3/15,0.067 / 2/15 (same-rows),0.233 / 2/15,0.300 / 5/15 (same-rows)
-D-caption-cost,—,—,—,—,—,—,0.225 / 7/15,0.267 / 7/15 (same-rows),—,—,—,—
-Unsup-pure-GW,—,—,—,—,—,—,—,—,0.020 / 3/15,0.067 / 2/15 (same-rows),—,—
-Text-only,—,—,—,—,—,—,—,—,—,—,0.233 / 2/15,0.300 / 5/15 (same-rows)

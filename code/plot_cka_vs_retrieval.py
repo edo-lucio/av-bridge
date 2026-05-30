@@ -58,7 +58,6 @@ RECIPE_LABELS = {
     "unsup":        "GW (intra-modal geometry)",
 }
 
-# 4 retrieval metrics: three R@k depths plus categorical precision.
 METRICS = [
     ("R@1",              r"$R@1$  (sharp top retrieval)"),
     ("R@5",              r"$R@5$  (mid-depth retrieval)"),
@@ -136,13 +135,11 @@ def render(out_path: Path, scope: str) -> None:
             ax.set_axis_off()
             continue
 
-        # Scatter, coloured by recipe.
         sns.scatterplot(data=sub, x="cka", y=col, hue="recipe",
                         ax=ax, palette=palette, s=70,
                         edgecolor="white", linewidth=0.6, alpha=0.9,
                         legend=False)
 
-        # Per-recipe linear-regression trend line.
         for recipe, color in palette.items():
             rec_sub = sub[sub.recipe == recipe]
             if len(rec_sub) >= 3:
@@ -151,7 +148,6 @@ def render(out_path: Path, scope: str) -> None:
                             line_kws={"color": color, "lw": 1.3,
                                       "alpha": 0.55})
 
-        # Annotate global + per-recipe Pearson r in a corner box.
         global_r = _pearson_safe(sub["cka"].values, sub[col].values)
         annot_lines = [f"global $r$ = {global_r:+.2f}"]
         for recipe in palette.keys():
@@ -182,7 +178,6 @@ def render(out_path: Path, scope: str) -> None:
         ax.grid(True, alpha=0.3)
         sns.despine(ax=ax)
 
-    # Single figure-level recipe legend.
     legend_handles = [
         Line2D([], [], color=color, marker="o", linestyle="None",
                markersize=9, label=label)

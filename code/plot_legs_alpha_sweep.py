@@ -48,25 +48,21 @@ PLOT_DIR = RES / "exp_grid" / "plots"
 
 ALPHA_GRID = [0.0, 0.3, 0.5, 0.7, 0.9]
 
-# Encoder pair colours: blue = canonical, orange = text-free.
-# For the legs, "canonical" and "text-free" decompose per side, so each
-# leg's pair spec carries its own per-side suffix.
 PAIRS = {
     "canonical": {
         "label":      "text-grounded (CLIP-L $/$ CLAP-unfused)",
         "color":      "#2a7fff",
-        "a_suffix":   "",                 # Leg A canonical = default image encoder
-        "b_suffix":   "",                 # Leg B canonical = default audio encoder
+        "a_suffix":   "",
+        "b_suffix":   "",
     },
     "textfree": {
         "label":      "text-free (DINOv2-L $/$ MERT-330m)",
         "color":      "#dd8452",
-        "a_suffix":   "__dinov2-large",   # Leg A text-free = DINOv2-large
-        "b_suffix":   "__mert-330m",      # Leg B text-free = MERT-330m
+        "a_suffix":   "__dinov2-large",
+        "b_suffix":   "__mert-330m",
     },
 }
 
-# The two legs of the transitive bridge.
 LEGS = [
     {"key": "a",
      "label": "Leg A  ---  image $\\to$ visual-text  (Experiment A)",
@@ -147,7 +143,6 @@ def render(out_path: Path, K: int, scope: str) -> None:
         plt.close(fig)
         return
 
-    # Single regime legend.
     pair_handles = [
         Line2D([], [], color=PAIRS[k]["color"], lw=2.2,
                marker="o", markersize=6, label=PAIRS[k]["label"])

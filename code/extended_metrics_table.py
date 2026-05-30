@@ -189,7 +189,6 @@ def compute_for_row(spec: ExperimentSpec, csv_row: dict) -> dict:
         # Baselines: just expose R@10 and use 10 as the implicit denominator.
         return out
 
-    # core_set: need the matching plan and (for heldout) the index file.
     plan_path = resolve_plan_path(spec, str(csv_row.get("K")), str(csv_row.get("alpha")))
     if plan_path is None or not plan_path.exists():
         if plan_path:
@@ -210,7 +209,6 @@ def compute_for_row(spec: ExperimentSpec, csv_row: dict) -> dict:
     except ValueError:
         rel = plan_path
     out["plan_path"] = str(rel)
-    # quick row-stochastic check
     row_sums = T.sum(axis=1)
     if not np.allclose(row_sums, row_sums.mean(), atol=1e-3):
         out["missing_reason"] = "plan not row-stochastic; core-set metric not applicable"
@@ -355,7 +353,6 @@ def main() -> None:
             for csv_row in csv.DictReader(f):
                 all_rows.append(compute_for_row(spec, csv_row))
 
-    # CSV
     csv_out = OUT_DIR / "extended_table.csv"
     fieldnames = [
         "method", "K", "alpha", "scope", "r_at_10",
@@ -369,15 +366,12 @@ def main() -> None:
         for r in all_rows:
             w.writerow(r)
 
-    # JSON
     json_out = OUT_DIR / "extended_table.json"
     json_out.write_text(json.dumps(all_rows, indent=2, default=str))
 
-    # Markdown
     md_out = OUT_DIR / "extended_table.md"
     md_out.write_text(render_markdown(all_rows))
 
-    # Missing log
     miss_out = OUT_DIR / "MISSING.md"
     miss_out.write_text(render_missing(all_rows))
 

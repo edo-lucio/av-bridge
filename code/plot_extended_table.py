@@ -40,7 +40,6 @@ TABLE_CSV = RES / "core_set_analysis" / "extended_table.csv"
 OUT = RES / "exp_grid" / "plots" / "core_set_scatter.png"
 
 
-# Friendly short labels and palette anchor for each method.
 METHODS = {
     "Random baseline":                                "Random",
     "GW (unsup, alpha=1.0)":                          "Pure-GW",
@@ -60,15 +59,12 @@ PALETTE = {
 
 def _panel(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
     """Render one scope's worth of points on a given axes."""
-    # Filter to the core_set rows only (text baseline reports R@10/10 separately).
     sub = df[df.metric_kind == "core_set"].copy()
     if sub.empty:
         ax.set_title(f"{title}\n(no core-set rows)")
         ax.set_axis_off()
         return
 
-    # Transitive: many (K, alpha) cells. Draw a thin line per alpha so K
-    # progression is visible, and small markers.
     tr = sub[sub.method == "FGW transitive (identity bridge)"]
     if not tr.empty:
         for alpha, grp in tr.groupby("alpha"):
@@ -80,7 +76,6 @@ def _panel(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
                        color=PALETTE["Transitive bridge"],
                        s=22, alpha=0.55, edgecolor="white", linewidth=0.4,
                        zorder=3)
-        # One annotated marker at the canonical (K=300, alpha=0.7) cell.
         canon = tr[(tr.K == 300) & (np.isclose(tr.alpha, 0.7))]
         if not canon.empty:
             x = float(canon.iloc[0].core_mean_size)
@@ -93,7 +88,6 @@ def _panel(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
                         xytext=(6, -6), textcoords="offset points",
                         fontsize=7.5, alpha=0.8)
 
-    # Caption-Distance FGW: 5 alpha cells. Connect with a line.
     d = sub[sub.method == "FGW direct (M = caption cos)"].sort_values("alpha")
     if not d.empty:
         ax.plot(d.core_mean_size, d.core_hit,
@@ -103,7 +97,6 @@ def _panel(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
                    color=PALETTE["Caption-Dist FGW"],
                    edgecolor="white", linewidth=0.6, alpha=0.95, zorder=4,
                    label="Caption-Dist FGW")
-        # Annotate each alpha value.
         for _, r in d.iterrows():
             ax.annotate(rf"$\alpha$={r.alpha:.1f}",
                         (r.core_mean_size, r.core_hit),
@@ -111,7 +104,6 @@ def _panel(ax: plt.Axes, df: pd.DataFrame, title: str) -> None:
                         fontsize=6.5, color=PALETTE["Caption-Dist FGW"],
                         alpha=0.85)
 
-    # Single-point recipes (one marker each).
     for method, label_short in METHODS.items():
         if method in ("FGW transitive (identity bridge)",
                       "FGW direct (M = caption cos)"):
@@ -150,7 +142,6 @@ def main() -> None:
     _panel(axes[1], df[df.scope == "heldout"],
            "Held-out scope (rows outside $S_{\\mathrm{compare}}$)")
 
-    # Single legend from the right panel (it has more entries usually).
     handles, labels = axes[1].get_legend_handles_labels()
     if not handles:
         handles, labels = axes[0].get_legend_handles_labels()

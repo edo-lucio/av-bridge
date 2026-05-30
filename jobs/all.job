@@ -63,7 +63,7 @@ if [ "$SKIP_TEXTFREE" = "0" ]; then
     # NOTE: c-transitive triggers the full K x alpha sweep (8 K x 5 alpha
     # = 40 cells, ~20 min) at the text-free pair, mirroring stage 1a
     # for the canonical pair.
-    for EXP in c-transitive d unsup text random; do
+    for EXP in c-transitive d unsup text random procrustes direct; do
         python code/run_experiments.py --exp "$EXP" \
             --image-encoder "$FREE_IMG" --audio-encoder "$FREE_AUD" \
             --out-suffix "$FREE_SUFFIX"

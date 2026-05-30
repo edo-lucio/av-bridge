@@ -109,7 +109,6 @@ def main():
         "% =====================================================================\n"
     )
 
-    # Exp A at the chosen encoder
     a_path = Path(args.exp_a_csv)
     if a_path.exists():
         chunks = [HEADER]
@@ -122,7 +121,6 @@ def main():
         print(f"[A] skip: {a_path} not present. Re-run "
               f"`python code/run_experiments.py --exp a --image-encoder {a_path.parent.name.split('__')[-1]}` on HPC.")
 
-    # Exp B at the chosen encoder
     b_path = Path(args.exp_b_csv)
     if b_path.exists():
         chunks = [HEADER]

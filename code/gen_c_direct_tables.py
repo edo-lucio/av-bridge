@@ -57,22 +57,17 @@ def render_table(pair: dict, scope: str) -> str:
     if not ks_present:
         return "% No K values present.\n"
 
-    # Build the body rows.
     body_lines = []
     for K in ks_present:
         sub = df[df.K == K].set_index("alpha")
         rows_alpha = [a for a in ALPHAS if a in sub.index]
         if not rows_alpha:
             continue
-        # Drop K-rows where every cell is NaN (e.g. K=400 has no held-out
-        # rows because all 400 anchors leave nothing to evaluate on).
         all_vals = [float(sub.loc[a, m])
                     for a in rows_alpha for m, _ in METRICS]
         import math
         if all(math.isnan(v) for v in all_vals):
             continue
-        # Per-row best per metric (across alpha values in this K row).
-        # NaN-safe max: ignore NaNs when picking the best.
         best = {}
         for m, _ in METRICS:
             vals = [float(sub.loc[a, m]) for a in rows_alpha]

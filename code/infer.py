@@ -32,12 +32,9 @@ MANIFEST = DATA / "manifest.csv"
 AUDIO = DATA / "audio"
 DEFAULT_PLAN = RES / "exp_d" / "T_caption.npy"
 
-# Reusable-K from run_experiments.py — needed to reconstruct the same-rows
-# partition for eval mode.
 REUSABLE_K = 300
 
 
-# ---------- helpers --------------------------------------------------------
 def load_manifest_clip_ids() -> list[str]:
     """Return clip_ids in the same order the embeddings are saved in."""
     rows: list[str] = []
@@ -136,7 +133,6 @@ def write_csv(out_path: Path, header: list[str], rows: list[dict]) -> None:
     print(f"[csv] wrote {out_path}")
 
 
-# ---------- single-query mode ---------------------------------------------
 def mode_single(args: argparse.Namespace) -> None:
     clip_ids = load_manifest_clip_ids()
     n = len(clip_ids)
@@ -185,7 +181,6 @@ def mode_single(args: argparse.Namespace) -> None:
                   ["rank", "clip_id", "score", "audio_path"], rows)
 
 
-# ---------- eval-same-rows mode -------------------------------------------
 def _kmeans_partition(X: np.ndarray, K: int) -> np.ndarray:
     sys.path.insert(0, str(ROOT / "code"))
     from run_experiments import kmeans_stratified_indices
@@ -200,8 +195,6 @@ def mode_eval_same_rows(args: argparse.Namespace) -> None:
     X = np.load(EMB / f"vision_{args.image_encoder}.npy")
     Y = np.load(EMB / f"audio_{args.audio_encoder}.npy")
 
-    # Reconstruct the same-rows partition used by Experiment D's
-    # heldout scope and Experiment C-transitive's held-out.
     S_a = _kmeans_partition(X, REUSABLE_K)
     S_b = _kmeans_partition(Y, REUSABLE_K)
     S_union = np.unique(np.concatenate([S_a, S_b]))
@@ -236,7 +229,6 @@ def mode_eval_same_rows(args: argparse.Namespace) -> None:
                   ["clip_id", "gt_rank", "top1_clip"], per_clip)
 
 
-# ---------- CLI -----------------------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Image -> audio inference via a frozen transport plan."

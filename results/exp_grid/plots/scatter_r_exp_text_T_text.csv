@@ -1,2 +1,2 @@
 method,plan,pearson_r_full,n_pairs,n_subsample
-Text-only — caption cosine,results/exp_text/T_text.npy,0.3150421977043152,79800,40000
+Text-only,results/exp_text/T_text.npy,0.3150421977043152,79800,40000

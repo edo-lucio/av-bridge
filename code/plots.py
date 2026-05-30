@@ -20,9 +20,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-# Global thesis-style theme. Affects every matplotlib axes too: line plots
-# and the dense pairwise-distance scatter inherit the grid, palette, and
-# tick styling without per-call refactoring.
 sns.set_theme(
     style="whitegrid",
     context="notebook",
@@ -87,7 +84,6 @@ def find_elbow(K_vals: list[int], r10: list[float]) -> int:
 def plot_sweep(df: pd.DataFrame, K_cl: int, out: Path, alpha_focus: float = 0.5) -> None:
     sub = df[(df["scope"] == "aggregate") & (df["alpha"] == alpha_focus)].sort_values("K")
     if sub.empty:
-        # fall back to whatever alpha is present
         sub = df[df["scope"] == "aggregate"].sort_values(["alpha", "K"])
         if sub.empty:
             print(f"[plot] no data for {out}")
@@ -237,9 +233,6 @@ def emit_experiment_artifacts(exp_dir: Path, sweep_name: str) -> None:
         print(f"[grid] wrote {exp_dir / 'grid_heldout.csv'}")
 
     plot_sweep(df, K_cl, exp_dir / "sweep.png", alpha_focus=0.5)
-    # Orthogonal cut: α-sweep at the canonical operating point, with
-    # aggregate (dashed) and held-out (solid) overlaid so the
-    # memorisation gap is visible at every α.
     plot_alpha_sweep(df, K_cl=K_cl,
                      out=exp_dir / "alpha_sweep.png",
                      scopes=("aggregate", "heldout"),
@@ -282,10 +275,6 @@ def emit_exp_d_artifacts(exp_dir: Path) -> None:
         }]).to_csv(exp_dir / "grid_heldout.csv", index=False)
         print(f"[grid] wrote {exp_dir / 'grid_heldout.csv'} (heldout)")
 
-    # α-sweep figure: only for FGW experiments where α actually varies.
-    # Experiment D sweeps α in {0, 0.3, 0.5, 0.7, 0.9}; same-rows view
-    # has a single α=0.7 point that gets drawn as a marker on top.
-    # Pure-GW (α≡1) and Text-only (α=NaN) are not FGW — skip.
     n_alpha = df[df["scope"] == "aggregate"]["alpha"].nunique()
     if n_alpha >= 2:
         plot_alpha_sweep(df, K_cl=K_cl,
@@ -309,8 +298,6 @@ def emit_comparison() -> None:
 
     a = load_sweep(RES / "exp_a" / "sweep.csv")
     b = load_sweep(RES / "exp_b" / "sweep.csv")
-    # C-direct is no longer in the suite; emit_comparison leaves the
-    # corresponding cells empty (rendered as a dash) rather than crashing.
     c_dir = pd.DataFrame()
     c_tr = load_sweep(RES / "exp_c" / "sweep_transitive.csv")
     d = load_sweep(RES / "exp_d" / "sweep.csv")
@@ -347,7 +334,6 @@ def emit_comparison() -> None:
         ("exp_c_direct", c_dir, 15),
     ]
 
-    # Per-method rows: "elbow" and "K=300"
     for method, K_pick in [("elbow@a=0.5", None), ("K=300@a=0.5", K_target)]:
         ret_row = {"method": method}
         str_row = {"method": method}
@@ -360,7 +346,6 @@ def emit_comparison() -> None:
         rows_ret.append(ret_row)
         rows_str.append(str_row)
 
-    # Add C-transitive row
     if not c_tr.empty:
         agg = c_tr[c_tr["scope"] == "aggregate"]
         hel = c_tr[c_tr["scope"] == "heldout"]
@@ -400,9 +385,6 @@ def emit_comparison() -> None:
                 str_row["exp_c_direct_hel"] = "—"
             rows_str.append(str_row)
 
-    # Each "extra" image-audio variant (D, Unsup, Text) is a single-cell
-    # experiment with two scopes: 'aggregate' and 'heldout'.
-    # We pluck both, format retrieval and structural strings.
     def _extra_cells(df: pd.DataFrame, alpha_filter):
         """Return {ret_agg, ret_hel, str_agg, str_hel} for a single-cell exp.
 
@@ -439,10 +421,6 @@ def emit_comparison() -> None:
     unsup_cells = _extra_cells(unsup, lambda a: np.isclose(a, 1.0))
     text_cells = _extra_cells(text, None)  # text baseline has alpha=NaN
 
-    # Inject the extra-experiment cells into every existing row, so the
-    # comparison row at "K=300@α=0.5" can be read horizontally across the
-    # full set of image-audio variants. The extra experiments are
-    # operating-point-free; the same single number appears in every row.
     for row in rows_ret:
         row["exp_d_agg"]     = d_cells["ret_agg"]
         row["exp_d_hel"]     = d_cells["ret_hel"]
@@ -458,9 +436,6 @@ def emit_comparison() -> None:
         row["exp_text_agg"]  = text_cells["str_agg"]
         row["exp_text_hel"]  = text_cells["str_hel"]
 
-    # Dedicated rows for the three image-audio variants that don't fit the
-    # ridge sweep narrative — D, Unsup, Text — so each can be read on its
-    # own line with the supervised columns blanked out.
     def _empty_supervised():
         return {
             "exp_a_agg": "—", "exp_a_hel": "—",
@@ -517,9 +492,6 @@ def emit_comparison() -> None:
     print(f"[comparison] wrote {RES / 'comparison_structure.csv'}")
 
 
-# ---------------------------------------------------------------------------
-# Encoder-ablation grid (Phase 8g): heatmaps and bar charts.
-# ---------------------------------------------------------------------------
 def _heatmap(pivot: pd.DataFrame, title: str, out: Path,
              cmap: str = "viridis", vmin=None, vmax=None,
              fmt: str = ".3f", cbar_label: str | None = None) -> None:
@@ -569,7 +541,6 @@ def _bar(pivot: pd.DataFrame, title: str, out: Path,
         data=long, x=idx_name, y="value", hue=col_name,
         ax=ax, palette="colorblind", edgecolor="white",
     )
-    # Annotate bar values for quick reading.
     for container in ax.containers:
         ax.bar_label(container, fmt="%.2f", padding=2, fontsize=7)
     ax.set_ylabel(ylabel)
@@ -595,7 +566,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
     plots_dir = grid_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---- Cross-modal heatmaps (vision × audio) ---------------------------
     def heat(exp_name: str, scope: str, metric: str,
              out_name: str, title: str,
              cmap: str = "viridis", vmin=None, vmax=None,
@@ -613,9 +583,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
 
     has_ami = "ami" in df.columns
 
-    # C-direct removed from the suite -- no heatmaps for it.
-
-    # C-transitive (identity bridge): heatmaps mirror D.
     heat("c-transitive", "heldout", "R@10",
          "ctrans_R10_heldout.png",
          "Caption-index C-transitive -- R@10 (held-out)",
@@ -630,13 +597,11 @@ def emit_grid_plots(grid_dir: Path) -> None:
          "Caption-index C-transitive -- R@10 (aggregate)",
          cmap="viridis", vmin=0.0, vmax=1.0)
 
-    # Random baseline: useful for visual reference of the chance floor.
     heat("random", "heldout", "R@10",
          "random_R10_heldout.png",
          "Random baseline -- R@10 (held-out, chance floor)",
          cmap="viridis", vmin=0.0, vmax=0.05)
 
-    # D -- caption-cost FGW
     heat("d", "aggregate", "R@10",
          "d_R10_aggregate.png",
          "Experiment D — R@10 (aggregate, α=0.7)",
@@ -655,7 +620,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
              "Experiment D — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
 
-    # Unsup — pure GW
     heat("unsup", "aggregate", "R@10",
          "unsup_R10_aggregate.png",
          "Experiment Unsup — R@10 (aggregate, pure GW)",
@@ -670,7 +634,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
              "Experiment Unsup — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
 
-    # Text-only baseline
     heat("text", "aggregate", "R@10",
          "text_R10_aggregate.png",
          "Text-only baseline — R@10 (aggregate)",
@@ -681,9 +644,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
              "Text-only baseline — cluster AMI (same-rows, chance-corrected)",
              cmap="magma", vmin=-0.05, vmax=0.6)
 
-    # Delta R@10: C-transitive (held-out_like_c) - Random (held-out_like_c)
-    # The "above-chance retrieval signal" carried by the caption-index
-    # composition over the no-information floor.
     sub_c = df[(df["experiment"] == "c-transitive") & (df["scope"] == "heldout")]
     sub_r = df[(df["experiment"] == "random") & (df["scope"] == "heldout")]
     if not sub_c.empty and not sub_r.empty:
@@ -698,7 +658,7 @@ def emit_grid_plots(grid_dir: Path) -> None:
                  cmap="RdBu_r", vmin=-0.2, vmax=0.2, fmt="+.3f",
                  cbar_label="Delta R@10")
 
-    # ΔR@10: D (same-rows) − Text-only (same-rows)  (how much FGW adds over raw captions)
+    sub_d = df[(df["experiment"] == "d") & (df["scope"] == "heldout")]
     sub_t = df[(df["experiment"] == "text") & (df["scope"] == "heldout")]
     if not sub_d.empty and not sub_t.empty:
         pv_d_sr = sub_d.pivot(index="image_encoder",
@@ -712,7 +672,6 @@ def emit_grid_plots(grid_dir: Path) -> None:
                  cmap="RdBu_r", vmin=-0.1, vmax=0.1, fmt="+.3f",
                  cbar_label="ΔR@10")
 
-    # ---- Unimodal bar charts ----------------------------------------------
     a = df[df["experiment"] == "a"]
     if not a.empty:
         pv = a.pivot(index="image_encoder", columns="scope", values="R@10")
@@ -747,24 +706,38 @@ def emit_grid_plots(grid_dir: Path) -> None:
                  "Experiment B — cluster AMI by audio encoder (chance-corrected)",
                  plots_dir / "b_AMI_by_audio_encoder.png", ylabel="AMI")
 
-    # ---- Long-format tidy tables for downstream reuse ---------------------
     df.to_csv(grid_dir / "tidy.csv", index=False)
     print(f"[grid] wrote {grid_dir / 'tidy.csv'}")
 
 
-# ---------------------------------------------------------------------------
-# Cluster confusion matrices (cross-modal class-level alignment visual).
-# ---------------------------------------------------------------------------
 EMB = ROOT / "embeddings"
 
-# Cross-modal image -> audio plans for the side-by-side confusion-matrix
-# figure. Each entry: display_label -> path to a saved (n, n) plan that
-# routes the canonical CLIP-L/14 rows (source) to CLAP-unfused rows (target).
 DEFAULT_CONFUSION_PLANS: list[tuple[str, Path]] = [
-    ("D — caption-cost FGW",       RES / "exp_d"     / "T_caption.npy"),
-    ("C-transitive — text bridge", RES / "exp_c"     / "T_transitive.npy"),
-    ("Pure-GW",                    RES / "exp_unsup" / "T_gw.npy"),
-    ("Text-only — caption cosine", RES / "exp_text"  / "T_text.npy"),
+    ("Caption-Distance FGW",  RES / "exp_d"          / "T_caption.npy"),
+    ("Transitive bridge",     RES / "exp_c"          / "T_transitive.npy"),
+    ("Pure-GW",               RES / "exp_unsup"      / "T_gw.npy"),
+    ("Text-only",             RES / "exp_text"       / "T_text.npy"),
+    ("C-MCR",                 RES / "exp_cmcr"       / "T_cmcr.npy"),
+    ("Procrustes",            RES / "exp_procrustes" / "T_procrustes.npy"),
+    ("Direct ridge",          RES / "exp_direct"     / "T_direct.npy"),
+]
+
+# Plans for the structure-vs-retrieval scatter. The two FGW sweep methods
+# are shown at their BEST held-out R@10 operating point (alpha=0.5 for both),
+# not the canonical alpha=0.7 the confusion matrices use, so the figure makes
+# the point that the best-retrieving plan is not the highest-Pearson one.
+# alpha=0 is deliberately NOT used: it zeroes the GW term and collapses
+# Caption-FGW to Sinkhorn-on-caption-cosine (~ Text-only). The chosen alpha
+# is annotated in each label; the supervised / non-sweep methods reuse their
+# canonical plans.
+SCATTER_PLANS: list[tuple[str, Path]] = [
+    (r"Caption-Distance FGW ($\alpha=0.5$)", RES / "exp_d" / "plans" / "T__a0.50.npy"),
+    (r"Transitive bridge ($\alpha=0.5$)",    RES / "exp_c" / "plans" / "T__K300__a0.50.npy"),
+    (r"Pure-GW ($\alpha=1$)",                RES / "exp_unsup"      / "T_gw.npy"),
+    ("Text-only",                            RES / "exp_text"       / "T_text.npy"),
+    ("C-MCR",                                RES / "exp_cmcr"       / "T_cmcr.npy"),
+    ("Procrustes",                           RES / "exp_procrustes" / "T_procrustes.npy"),
+    ("Direct ridge",                         RES / "exp_direct"     / "T_direct.npy"),
 ]
 
 
@@ -851,7 +824,6 @@ def emit_cluster_confusions(
     print(f"[confusion] X={X.shape} (vision_{image_encoder})  "
           f"Y={Y.shape} (audio_{audio_encoder})  K_cl={K_cl}  mode={mode}")
 
-    # Load all plans up-front and skip silently on missing files.
     loaded: list[tuple[str, np.ndarray, Path]] = []
     for label, plan_path in plans:
         if not plan_path.exists():
@@ -867,10 +839,6 @@ def emit_cluster_confusions(
         print("[confusion] no plans loaded; nothing to render.")
         return
 
-    # First pass: compute all (permuted) confusion matrices so a global
-    # vmax can be used for fair colour-scale comparison across subplots.
-    # Also persists per-plan CSVs (raw confusion + Hungarian permutation)
-    # next to the figure so the matrices are inspectable without re-running.
     computed: list[tuple[str, np.ndarray, dict, Path]] = []
     global_vmax = 0.0
     for label, T, plan_path in loaded:
@@ -916,13 +884,16 @@ def emit_cluster_confusions(
         )
         last_im = _draw_confusion(ax, C_perm, sub_title, vmax=global_vmax)
 
-    # Blank out any unused subplots.
     for k in range(n_cells, len(axes_flat)):
         axes_flat[k].axis("off")
 
     if last_im is not None:
+        # Always a FLAT list of Axes: axes.tolist() on a 2D array is nested
+        # (list of rows), which matplotlib's colorbar mis-handles
+        # ("'list' object has no attribute 'get_figure'") once the grid
+        # spans >1 row (as it does with the expanded recipe set).
         fig.colorbar(
-            last_im, ax=axes.tolist() if rows > 1 else axes_flat.tolist(),
+            last_im, ax=axes_flat.tolist(),
             shrink=0.85, label="row-normalised mass",
         )
     fig.suptitle(
@@ -994,7 +965,6 @@ def emit_pearson_scatter(
     iu = np.triu_indices(n, k=1)
     a_full = Ds[iu]
 
-    # Optional subsample for plotting (full n(n-1)/2 may overplot).
     rng = np.random.default_rng(seed)
     n_pairs = a_full.size
     if sample_pairs and sample_pairs < n_pairs:
@@ -1017,12 +987,12 @@ def emit_pearson_scatter(
         return
 
     n_cells = len(loaded)
-    cols = min(n_cells, 4)
+    cols = min(n_cells, 3)
     rows = int(np.ceil(n_cells / cols))
     fig, axes = plt.subplots(
         rows, cols,
-        figsize=(4.2 * cols, 4.2 * rows),
-        squeeze=False,
+        figsize=(4.4 * cols, 4.7 * rows),
+        squeeze=False, constrained_layout=True,
     )
     axes_flat = axes.flatten()
 
@@ -1031,7 +1001,6 @@ def emit_pearson_scatter(
         partners = T.argmax(axis=1)
         Dt = pairwise_distances(Y[partners])
         b_full = Dt[iu]
-        # Full-set Pearson — matches the scalar reported elsewhere.
         if np.std(a_full) < 1e-12 or np.std(b_full) < 1e-12:
             r_full = float("nan")
         else:
@@ -1059,7 +1028,6 @@ def emit_pearson_scatter(
         ax.legend(loc="upper left", fontsize=7)
         sns.despine(ax=ax)
 
-        # Persist the scalar so it can be cross-checked against the CSV.
         pd.DataFrame([{"method": label,
                        "plan": str(plan_path.relative_to(ROOT)),
                        "pearson_r_full": r_full,
@@ -1076,32 +1044,166 @@ def emit_pearson_scatter(
         f"Cross-modal pairwise-distance scatter  "
         f"({image_encoder} → {audio_encoder}, subsample={sub_idx.size} / "
         f"{n_pairs} pairs)",
-        fontsize=12, y=1.02,
+        fontsize=12,
     )
     out_path = out_dir / "cross_modal_pearson_scatter.png"
-    fig.savefig(out_path, dpi=140, bbox_inches="tight")
+    fig.savefig(out_path, dpi=140)
     plt.close(fig)
     print(f"[scatter] wrote {out_path}")
 
 
-# ---------------------------------------------------------------------------
-# Cross-encoder comparison plots for the within-modality legs A and B.
-#
-# Auto-discovers every `results/exp_a*/sweep.csv` (one per image encoder)
-# and `results/exp_b*/sweep.csv` (one per audio encoder), then overlays
-# one curve per encoder on shared K and alpha axes. Works with whatever
-# is on disk: with a single CSV the plots are still meaningful (single
-# curve); with multiple CSVs each encoder is a separate hue.
-# ---------------------------------------------------------------------------
+def emit_scatter_by_retrieval(
+    image_encoder: str = "clip-large",
+    audio_encoder: str = "clap-unfused",
+    plans: list[tuple[str, Path]] | None = None,
+    out_dir: Path | None = None,
+    sample_pairs: int = 40000,
+    seed: int = 0,
+    K_cl: int = 15,
+) -> None:
+    """Same pairwise-distance scatters as ``emit_pearson_scatter``, but each
+    recipe's panel is COLOURED by its held-out retrieval score and the panels
+    are ORDERED by that score. One figure per retrieval metric
+    (R@1, R@5, R@10, Cat-prec@10, MRR).
+
+    The point is to show the structure-vs-retrieval decoupling without
+    asserting a (false) monotonic correlation: the scatter *shape* / Pearson
+    r in each title is the isometry-preservation signal, while the panel
+    *colour* (shared colourbar) is retrieval. A tight, high-r band that is
+    coloured "low retrieval" (e.g. Pure-GW) sitting next to a looser band
+    coloured "high retrieval" (e.g. Text-only) makes the case visually:
+    preserving pairwise geometry does not buy semantic retrieval.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from sklearn.metrics import pairwise_distances
+    from sklearn.cluster import KMeans
+    from scipy.stats import pearsonr
+    import matplotlib as mpl
+
+    plans = plans if plans is not None else SCATTER_PLANS
+    out_dir = out_dir if out_dir is not None else (RES / "exp_grid" / "plots")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    X_path = EMB / f"vision_{image_encoder}.npy"
+    Y_path = EMB / f"audio_{audio_encoder}.npy"
+    if not X_path.exists() or not Y_path.exists():
+        print(f"[scatter-retr] skip: missing embeddings ({X_path.name} / "
+              f"{Y_path.name}). Run on HPC with embeddings/ populated.")
+        return
+    X = np.load(X_path)
+    Y = np.load(Y_path)
+    n = X.shape[0]
+
+    Ds = pairwise_distances(X)
+    iu = np.triu_indices(n, k=1)
+    a_full = Ds[iu]
+    rng = np.random.default_rng(seed)
+    n_pairs = a_full.size
+    sub_idx = (rng.choice(n_pairs, size=sample_pairs, replace=False)
+               if sample_pairs and sample_pairs < n_pairs
+               else np.arange(n_pairs))
+    a = a_full[sub_idx]
+    tgt = KMeans(K_cl, random_state=42, n_init=10).fit_predict(Y)
+
+    RETR = [("R@1", "$R@1$"), ("R@5", "$R@5$"), ("R@10", "$R@10$"),
+            ("cat_precision_10", "Cat-prec@10"), ("mrr", "MRR")]
+
+    recs: list[dict] = []
+    for label, plan_path in plans:
+        if not plan_path.exists():
+            print(f"[scatter-retr] skip {label}: {plan_path} missing")
+            continue
+        T = np.load(plan_path)
+        if T.shape != (n, n):
+            continue
+        partners = T.argmax(axis=1)
+        b_full = pairwise_distances(Y[partners])[iu]
+        r_full = (float("nan") if (np.std(a_full) < 1e-12 or np.std(b_full) < 1e-12)
+                  else float(pearsonr(a_full, b_full)[0]))
+        # Held-out query rows: the index sits in the recipe dir; for plans
+        # kept in a `plans/` subdirectory (transitive, caption) it is one
+        # level up. Fall back to all rows only if neither location has it.
+        sidx = plan_path.parent / "heldout_compare_idx.npy"
+        if not sidx.exists():
+            sidx = plan_path.parent.parent / "heldout_compare_idx.npy"
+        if sidx.exists():
+            H = np.setdiff1d(np.arange(n), np.load(sidx).astype(int))
+        else:
+            H = np.arange(n)
+        diag = T[np.arange(n), np.arange(n)]
+        ranks = (T > diag[:, None]).sum(axis=1) + 1
+        rH = ranks[H]
+        topk = np.argsort(-T[H], axis=1)[:, :10]
+        retr = {
+            "R@1":  float((rH <= 1).mean()),
+            "R@5":  float((rH <= 5).mean()),
+            "R@10": float((rH <= 10).mean()),
+            "mrr":  float((1.0 / rH).mean()),
+            "cat_precision_10": float((tgt[topk] == tgt[H][:, None]).mean()),
+        }
+        recs.append({"label": label, "b": b_full[sub_idx], "r": r_full,
+                     "retr": retr})
+    if not recs:
+        print("[scatter-retr] no plans loaded; nothing to render.")
+        return
+
+    hi = max(float(a.max()), max(float(d["b"].max()) for d in recs))
+    for mkey, mlabel in RETR:
+        order = sorted(recs, key=lambda d: (d["retr"][mkey]
+                       if np.isfinite(d["retr"][mkey]) else -1.0))
+        vals = np.array([d["retr"][mkey] for d in order], dtype=float)
+        vmin, vmax = float(np.nanmin(vals)), float(np.nanmax(vals))
+        if vmax <= vmin:
+            vmax = vmin + 1e-9
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+        cmap = mpl.cm.viridis
+
+        cols = min(len(order), 3)
+        rows = int(np.ceil(len(order) / cols))
+        fig, axes = plt.subplots(rows, cols, figsize=(4.4 * cols, 4.8 * rows),
+                                 squeeze=False, constrained_layout=True)
+        axf = axes.flatten()
+        for k, d in enumerate(order):
+            ax = axf[k]
+            colour = cmap(norm(d["retr"][mkey]))
+            ax.scatter(a, d["b"], s=4, alpha=0.06, edgecolor="none",
+                       color=colour)
+            ax.plot([0, hi], [0, hi], color="grey", lw=0.9, ls="--")
+            ax.set_xlim(0, hi); ax.set_ylim(0, hi)
+            ax.set_xlabel(r"$\|X_i - X_{i'}\|$ (source)", fontsize=8)
+            ax.set_ylabel(r"$\|Y_{j^*(i)} - Y_{j^*(i')}\|$ (target)", fontsize=8)
+            ax.set_title(f"{d['label']}\nPearson r = {d['r']:.3f}   "
+                         f"{mlabel} = {d['retr'][mkey]:.3f}", fontsize=9)
+            sns.despine(ax=ax)
+        for k in range(len(order), len(axf)):
+            axf[k].axis("off")
+
+        sm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=axes.ravel().tolist(),
+                            fraction=0.025, pad=0.02)
+        cbar.set_label(f"held-out {mlabel}", fontsize=9)
+        fig.suptitle(
+            f"Pairwise-distance scatter, panels ordered (low→high) and "
+            f"coloured by held-out {mlabel}\n({image_encoder} → "
+            f"{audio_encoder}): tight band = structure preservation "
+            f"(Pearson r); colour = retrieval",
+            fontsize=11,
+        )
+        safe = mkey.replace("@", "").replace("/", "_")
+        out_path = out_dir / f"cross_modal_scatter__by_{safe}.png"
+        fig.savefig(out_path, dpi=140)
+        plt.close(fig)
+        print(f"[scatter-retr] wrote {out_path}")
+
+
 COMPARISON_DIR = RES / "comparison_plots"
 
-# Default operating point for the comparison plots. The K-sweep is shown
-# at this alpha and held-out scope; the alpha-sweep is shown at this K.
 COMPARISON_ALPHA = 0.5
 COMPARISON_K = 300
 COMPARISON_SCOPE = "heldout"
 
-# Metrics to overlay; (column, ylabel, marker).
 COMPARISON_METRICS = [
     ("R@10",       r"$R@10$",                  "o"),
     ("nmi",        "NMI (uncorrected)",        "s"),
@@ -1245,12 +1347,10 @@ def emit_unimodal_comparison() -> None:
         if not paths:
             print(f"[cmp] skip {letter}: no sweep CSVs found")
             continue
-        # Load each CSV once so downstream helpers operate on DataFrames.
         series = [(enc, pd.read_csv(p)) for enc, p in paths]
         encoders = [s[0] for s in series]
         print(f"[cmp] {letter}: {len(series)} encoder(s) -> {encoders}")
 
-        # K-sweep at fixed alpha, on held-out (the honest measure).
         _plot_overlay(
             series, x_col="K",
             out=COMPARISON_DIR / f"{letter}__K_sweep_by_encoder.png",
@@ -1262,7 +1362,6 @@ def emit_unimodal_comparison() -> None:
             scope=COMPARISON_SCOPE,
         )
 
-        # Alpha-sweep at fixed K, on held-out.
         _plot_overlay(
             series, x_col="alpha",
             out=COMPARISON_DIR / f"{letter}__alpha_sweep_by_encoder.png",
@@ -1274,7 +1373,6 @@ def emit_unimodal_comparison() -> None:
             scope=COMPARISON_SCOPE,
         )
 
-        # Canonical-operating-point bar chart, one panel per metric.
         _plot_canonical_bars(
             series,
             out=COMPARISON_DIR / f"{letter}__canonical_bars.png",
@@ -1287,12 +1385,8 @@ def emit_unimodal_comparison() -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Caption-agreement plots (external-semantic metric, see code/metrics.py).
-# ---------------------------------------------------------------------------
 CAPTION_DIR = RES / "exp_grid" / "plots"
 
-# Recipe key in the grid CSV  ->  human-readable label used in plots.
 RECIPE_LABELS = {
     "random":       "Random (baseline)",
     "c-transitive": "Transitive Transport Bridge",
@@ -1301,8 +1395,6 @@ RECIPE_LABELS = {
     "text":         "Raw caption cosine (ceiling)",
 }
 
-# Per-recipe scope to read from the grid CSV (matches the conventions used
-# elsewhere in the chapter).
 RECIPE_SCOPE = {
     "random":       "heldout",
     "c-transitive": "heldout",
@@ -1358,7 +1450,6 @@ def emit_caption_agreement(
         return
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # ---- 1. Canonical-pair per-recipe bar chart ----------------------
     rows = []
     for exp, label in RECIPE_LABELS.items():
         scope = RECIPE_SCOPE[exp]
@@ -1382,7 +1473,6 @@ def emit_caption_agreement(
             value_vars=["chance", "argmax", "plan_mass", "identity"],
             var_name="quantity", value_name="cosine",
         )
-        # Order the categories for legend readability.
         long["quantity"] = pd.Categorical(
             long["quantity"], ["chance", "argmax", "plan_mass", "identity"]
         )
@@ -1407,7 +1497,6 @@ def emit_caption_agreement(
         plt.close(fig)
         print(f"[caption] wrote {out}")
 
-    # ---- 2. Lift heatmap per recipe ---------------------------------
     for exp, label in RECIPE_LABELS.items():
         scope = RECIPE_SCOPE[exp]
         sub = df[(df.experiment == exp) & (df.scope == scope)].dropna(
@@ -1428,7 +1517,6 @@ def emit_caption_agreement(
             fmt="+.3f", cbar_label="cap_cos_lift",
         )
 
-    # ---- 3. Reference-pair comparison (canonical vs text-free) ------
     free_image, free_audio = "dinov2-large", "mert-330m"
     rows = []
     for exp, label in RECIPE_LABELS.items():
@@ -1503,7 +1591,6 @@ def main() -> None:
     if args.exp in ("d", "all"):
         emit_exp_d_artifacts(RES / "exp_d")
     if args.exp in ("unsup", "all"):
-        # Same single-cell shape as Exp D — reuse the same emitter.
         emit_exp_d_artifacts(RES / "exp_unsup")
     if args.exp in ("text", "all"):
         emit_exp_d_artifacts(RES / "exp_text")
@@ -1518,6 +1605,11 @@ def main() -> None:
         )
     if args.exp in ("scatter", "all"):
         emit_pearson_scatter(
+            image_encoder=args.image_encoder,
+            audio_encoder=args.audio_encoder,
+            sample_pairs=args.scatter_subsample,
+        )
+        emit_scatter_by_retrieval(
             image_encoder=args.image_encoder,
             audio_encoder=args.audio_encoder,
             sample_pairs=args.scatter_subsample,

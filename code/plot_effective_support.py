@@ -64,9 +64,9 @@ PAIRS = {
     },
 }
 
-COL_LEG_A = "#1f77b4"   # blue
-COL_LEG_B = "#9467bd"   # purple
-COL_COMP  = "#d62728"   # red
+COL_LEG_A = "#1f77b4"
+COL_LEG_B = "#9467bd"
+COL_COMP  = "#d62728"
 
 
 def _support(csv: Path, K: int) -> tuple[np.ndarray, np.ndarray]:

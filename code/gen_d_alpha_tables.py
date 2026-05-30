@@ -60,10 +60,8 @@ def render_table(csv_path: Path, img: str, aud: str, tag: str,
     if not rows_present:
         return (f"% Skipped: {csv_path} has no rows for K=0, scope={scope}.\n")
 
-    # Find best per metric across all alpha columns.
     best = {m: df.loc[rows_present, m].max() for m, _ in METRICS}
 
-    # Build cell strings: per alpha, three metrics.
     cells = []
     for a in ALPHAS:
         if a in df.index:
@@ -121,7 +119,6 @@ def render_merged_table(pairs: list[dict], scope: str) -> str:
     (same convention as the per-pair table). The first column carries
     the encoder-pair distinction ("CLIP $\\times$ CLAP" etc.).
     """
-    # Collect the per-pair series; skip pairs whose CSV is missing.
     rows: list[tuple[str, dict[float, dict[str, float]]]] = []
     for p in pairs:
         if not p["csv"].exists():
@@ -147,7 +144,6 @@ def render_merged_table(pairs: list[dict], scope: str) -> str:
         f"\\multicolumn{{3}}{{c}}{{$\\alpha = {a}$}}"
         for a in ALPHAS
     )
-    # First column is the pair label, so cmidrules start at column 2.
     cmidrules = " ".join(
         f"\\cmidrule(lr){{{2 + 3*i}-{4 + 3*i}}}"
         for i in range(len(ALPHAS))
@@ -157,7 +153,6 @@ def render_merged_table(pairs: list[dict], scope: str) -> str:
 
     body_lines = []
     for pair_name, series in rows:
-        # Per-row best per metric across alphas.
         best = {
             m: max(series[a][m] for a in ALPHAS if a in series)
             for m, _ in METRICS

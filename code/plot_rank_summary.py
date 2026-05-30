@@ -48,16 +48,16 @@ RES = ROOT / "results"
 PLOT_DIR = RES / "exp_grid" / "plots"
 RANK_CSV = RES / "exp_grid" / "rank_distributions.csv"
 
-# Ordering for the X-axis. Matches RECIPES in analyse_ranks.py.
 RECIPE_ORDER = [
     "Random (baseline)",
     "Transitive Transport Bridge",
     "Caption Distance FGW",
     "GW (intra-modal geometry)",
     "Raw caption cosine (ceiling)",
+    "Procrustes (rigid supervised)",
+    "Direct ridge (supervised)",
 ]
 
-# Per-recipe colour (shared across pairs).
 RECIPE_COLOURS = dict(zip(RECIPE_ORDER,
                           sns.color_palette("colorblind",
                                             n_colors=len(RECIPE_ORDER))))
@@ -79,6 +79,8 @@ def _stat(ranks: np.ndarray, kind: str) -> float:
         return float(np.mean(1.0 / np.asarray(ranks, dtype=float)))
     if kind == "median":
         return float(np.median(ranks))
+    if kind == "mean":
+        return float(np.mean(np.asarray(ranks, dtype=float)))
     raise ValueError(kind)
 
 
@@ -100,8 +102,7 @@ def _bootstrap_ci(ranks: np.ndarray, kind: str,
 
 
 METRICS = [
-    ("r10",    "$R@10$",      False),       # higher = better, linear scale
-    ("mrr",    "MRR",         False),       # higher = better, linear scale
+    ("mean", "mean rank", "rank  (lower = better)", False),
 ]
 
 
@@ -130,7 +131,7 @@ def render(out_path: Path, scope: str, rank_csv: Path = RANK_CSV) -> None:
 
     sample_sizes: dict[str, int] = {}
 
-    for col_idx, (kind, label, is_log) in enumerate(METRICS):
+    for col_idx, (kind, label, ylabel, is_log) in enumerate(METRICS):
         ax = axes[0, col_idx]
 
         for pair_idx, pair in enumerate(PAIRS):
@@ -162,7 +163,6 @@ def render(out_path: Path, scope: str, rank_csv: Path = RANK_CSV) -> None:
                 hatch=pair["hatch"],
                 alpha=0.95,
             )
-            # Symmetric errorbar input requires non-negative values.
             ax.errorbar(
                 x_pos + offset,
                 [0 if np.isnan(h) else h for h in heights],
@@ -186,9 +186,7 @@ def render(out_path: Path, scope: str, rank_csv: Path = RANK_CSV) -> None:
         ax.set_title(label, fontsize=11)
         if is_log:
             ax.set_yscale("log")
-            ax.set_ylabel("rank  (lower = better)", fontsize=10)
-        else:
-            ax.set_ylabel("value  (higher = better)", fontsize=10)
+        ax.set_ylabel(ylabel, fontsize=10)
         ax.grid(True, axis="y", alpha=0.3)
         sns.despine(ax=ax)
 
@@ -236,7 +234,7 @@ def main() -> None:
     stem_suffix = ""
     if args.rank_csv:
         # Carry the input CSV's suffix into the default output name.
-        stem = Path(args.rank_csv).stem  # e.g. rank_distributions__a0.50
+        stem = Path(args.rank_csv).stem
         stem_suffix = stem.replace("rank_distributions", "")
     default_name = f"rank_summary__{args.scope}{stem_suffix}.png"
     out = Path(args.out) if args.out else PLOT_DIR / default_name

@@ -21,7 +21,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "results"
 
-# Pretty display names for encoders.
 PRETTY = {
     "clip-base":   "CLIP-B/32",
     "clip-large":  "CLIP-L/14",

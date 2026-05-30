@@ -138,7 +138,6 @@ def procrustes_align(
     """
     X_S = X[S_src]
     Y_S = Y[S_tgt]
-    # Thin SVD of cross-covariance. shape: (d_src, d_tgt).
     M = X_S.T @ Y_S
     U, _, Vt = np.linalg.svd(M, full_matrices=False)
     W = U @ Vt
@@ -170,6 +169,40 @@ def procrustes_recipe(
     instead of unsupervised geometric matching.
     """
     W = procrustes_align(X, Y, S_src, S_tgt)
+    X_proj = X @ W
+    norms = np.linalg.norm(X_proj, axis=1, keepdims=True)
+    norms = np.where(norms > 1e-12, norms, 1.0)
+    X_proj = X_proj / norms
+    return X_proj @ Y.T
+
+
+def ridge_recipe(
+    X: np.ndarray,
+    Y: np.ndarray,
+    S_src: np.ndarray,
+    S_tgt: np.ndarray,
+    lam: float = 1.0,
+) -> np.ndarray:
+    """Direct ridge baseline: flexible (unconstrained linear) supervised
+    image -> audio alignment.
+
+    1. Fit a closed-form ridge map W: source-space -> target-space from
+       the paired anchors (S_src, S_tgt) -- the same ``ridge_project`` the
+       FGW recipe uses, but applied *directly* between the two modalities.
+    2. Project all source rows X -> X W, renormalise to the unit
+       hypersphere alongside Y.
+    3. Return the (n, m) cosine-similarity matrix (X W) Y^T, consumed by
+       the metric suite via row-wise argmax / argsort.
+
+    This is the flexible-linear counterpart to ``procrustes_recipe``:
+    Procrustes restricts W to a rotation (preserves geometry, forbids
+    rescaling); ridge allows arbitrary linear distortion. Comparing the
+    two isolates whether retrieval needs a distortion-allowing map. As the
+    simplest method that uses the true image-audio pairs, it is the
+    supervised reference ceiling the text-mediated methods are measured
+    against.
+    """
+    W = ridge_project(X, Y, S_src, S_tgt, lam=lam)
     X_proj = X @ W
     norms = np.linalg.norm(X_proj, axis=1, keepdims=True)
     norms = np.where(norms > 1e-12, norms, 1.0)

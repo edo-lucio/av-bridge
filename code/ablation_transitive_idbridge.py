@@ -86,8 +86,6 @@ def main() -> None:
     print(f"[Ablation C-transitive (identity bridge)] "
           f"image={img_enc}  audio={aud_enc}")
 
-    # Resolve the A and B output directories using the same encoder
-    # auto-suffix convention used everywhere else.
     a_dir = RES / f"exp_a{_suffix_for(DEFAULT_IMAGE, img_enc)}"
     b_dir = RES / f"exp_b{_suffix_for(DEFAULT_AUDIO, aud_enc)}"
     t_iv_path = a_dir / "T_iv.npy"
@@ -107,8 +105,6 @@ def main() -> None:
     print(f"  loaded T_iv shape={T_iv.shape}  from {t_iv_path}")
     print(f"  loaded T_ac shape={T_ac.shape}  from {t_ac_path}")
 
-    # Embeddings for the metric suite (X, Y are the image/audio sides;
-    # ZV/ZA are needed for caption-agreement metrics).
     X_image = load_embedding(f"vision_{img_enc}")
     Y_audio = load_embedding(f"audio_{aud_enc}")
     ZV = load_embedding("ZV_text")
@@ -127,8 +123,6 @@ def main() -> None:
     T = identity_bridge_transitive(T_iv, T_ac)
     print(f"  composed plan shape={T.shape}  sum={T.sum():.6f}")
 
-    # Output directory: separate from exp_c/ so cosine-bridge artefacts
-    # remain untouched and the two can be compared head-to-head.
     suffix = ""
     if img_enc != DEFAULT_IMAGE or aud_enc != DEFAULT_AUDIO:
         suffix = f"__{img_enc}__{aud_enc}"
@@ -166,8 +160,6 @@ def main() -> None:
     print(f"  wrote {csv_path}")
     print(f"  wrote {out_dir / 'T_transitive_idbridge.npy'}")
 
-    # Short comparison readout against the existing cosine-bridge run,
-    # if its CSV exists in the parallel directory.
     cosine_csv = (RES / f"exp_c{suffix}" / "sweep_transitive.csv")
     if cosine_csv.exists():
         import pandas as pd
@@ -175,7 +167,7 @@ def main() -> None:
         print()
         print("  --- side-by-side vs cosine-bridge ---")
         for scope, label in [("aggregate", "aggregate"),
-                             ("heldout", "heldout")]:  # composed scope vs cosine-bridge scope (both renamed from heldout_like_c)
+                             ("heldout", "heldout")]:
             cos_row = cos[cos.scope == scope]
             if cos_row.empty:
                 cos_row = cos[cos.scope == label]

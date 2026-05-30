@@ -21,11 +21,6 @@ RES = ROOT / "results"
 
 GRID_CSV = RES / "exp_grid" / "sweep.csv"
 
-# Four regime-crossed pairs:
-#   (text-aligned image, text-aligned audio) -- canonical
-#   (text-aligned image, text-free   audio)
-#   (text-free   image, text-aligned audio)
-#   (text-free   image, text-free   audio) -- canonical text-free
 PAIRS = [
     {"img_enc": "clip-large",   "aud_enc": "clap-unfused",
      "img":     "CLIP-L/14",    "aud":     "CLAP-HTSAT-unfused"},
@@ -37,7 +32,6 @@ PAIRS = [
      "img":     "DINOv2-large", "aud":     "MERT-330m"},
 ]
 
-# Numeric metrics (sortable, bold-the-best applies).
 METRICS = [
     ("R@1",         "$R@1$"),
     ("R@10",        "$R@10$"),
@@ -48,8 +42,6 @@ METRICS = [
     ("knn_overlap", "kNN"),
 ]
 
-# Composite metric: routes_correct / routes_total. Rendered as
-# "correct/total". Bolded when the ratio is the column-wise max.
 ROUTE_HEADER = "route"
 
 
@@ -88,7 +80,6 @@ def render_table(pairs: list[dict], scope: str,
     if not rows:
         return "% No pairs had data; nothing to render.\n"
 
-    # Column-wise best across pairs.
     best = {m: max(d[m] for _, d, _ in rows) for m, _ in METRICS}
     best_route_ratio = max(
         rc / rt if rt > 0 else 0.0 for _, _, (rc, rt) in rows

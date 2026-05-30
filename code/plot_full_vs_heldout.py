@@ -38,22 +38,24 @@ ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "results"
 GRID_CSV = RES / "exp_grid" / "sweep.csv"
 
-# Match the labels used elsewhere in the suite.
 RECIPE_LABELS = {
     "random":       "Random",
     "c-transitive": "Transitive bridge",
     "d":            "Caption-dist FGW",
     "unsup":        "Pure-GW",
     "text":         "Text-only",
+    "procrustes":   "Procrustes",
+    "direct":       "Direct ridge",
 }
 
-# Per-recipe held-out scope label in the grid CSV.
 HELDOUT_SCOPE = {
     "random":       "heldout",
     "c-transitive": "heldout",
     "d":            "heldout",
     "unsup":        "heldout",
     "text":         "heldout",
+    "procrustes":   "heldout",
+    "direct":       "heldout",
 }
 
 # Seven metrics across the strict-to-coarse spectrum of alignment.
@@ -93,7 +95,6 @@ def _metric_value(df: pd.DataFrame, exp: str, scope: str,
         return float("nan")
     r = sub.iloc[0]
     if metric == "__routes_ratio":
-        # routes_correct / routes_total, defensive against missing or zero.
         total = float(r.get("routes_total", float("nan")))
         if not np.isfinite(total) or total == 0:
             return float("nan")
@@ -109,7 +110,6 @@ def render(out_path: Path, pair_keys: list[str]) -> None:
         return
     df_full = pd.read_csv(GRID_CSV)
 
-    # Layout: rows = encoder pairs (1 or 2), cols = metrics (6).
     n_rows = len(pair_keys)
     n_cols = len(METRICS)
     fig, axes = plt.subplots(n_rows, n_cols,
@@ -146,7 +146,6 @@ def render(out_path: Path, pair_keys: list[str]) -> None:
                    color=[palette[k] for k in recipe_keys],
                    alpha=1.0, edgecolor="white")
 
-            # Numeric labels (small) above each bar.
             for xi, v in zip(x - width / 2, agg_vals):
                 if not np.isnan(v):
                     ax.text(xi, v + 0.005, f"{v:.2f}",
@@ -169,7 +168,6 @@ def render(out_path: Path, pair_keys: list[str]) -> None:
             ax.set_ylim(bottom=0)
             sns.despine(ax=ax)
 
-    # Shared bottom legend (one entry per scope, neutral colour).
     handles = [
         plt.Rectangle((0, 0), 1, 1, facecolor="grey",
                       alpha=a, edgecolor="white", label=lbl)

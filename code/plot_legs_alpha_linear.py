@@ -115,19 +115,16 @@ def render(out_path: Path, K: int, scope: str) -> None:
 
                 color = pair_spec["color"]
 
-                # Scatter of measured cells.
                 ax.scatter(xs, ys, s=70, color=color,
                            edgecolor="black", linewidth=0.5,
                            zorder=4)
 
-                # Linear fit.
                 slope, intercept, r_value, _, _ = stats.linregress(xs, ys)
                 x_fit = np.linspace(0.0, 1.0, 60)
                 y_fit = intercept + slope * x_fit
                 ax.plot(x_fit, y_fit, ls="--", lw=1.6,
                         color=color, alpha=0.85, zorder=3)
 
-                # Annotate slope and R^2 near right end of fitted line.
                 y_anno = intercept + slope * 0.95
                 ax.annotate(
                     f"$m = {slope:+.2f}$\n$R^2 = {r_value**2:.2f}$",

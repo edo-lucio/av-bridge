@@ -67,9 +67,6 @@ RECIPE_SCOPE = {
 }
 
 
-# ----------------------------------------------------------------------------
-# Pareto front utility
-# ----------------------------------------------------------------------------
 def pareto_front(points: np.ndarray) -> np.ndarray:
     """Indices of Pareto-optimal points (maximising both x and y).
 
@@ -80,7 +77,6 @@ def pareto_front(points: np.ndarray) -> np.ndarray:
     for i in range(n):
         if is_dominated[i]:
             continue
-        # Any other point that dominates i?
         for j in range(n):
             if i == j:
                 continue
@@ -94,9 +90,6 @@ def pareto_front(points: np.ndarray) -> np.ndarray:
     return front[np.argsort(points[front, 0])]
 
 
-# ----------------------------------------------------------------------------
-# A. Pareto scatter
-# ----------------------------------------------------------------------------
 PANELS = [
     {"x": "pearson_r", "x_label": "structural: Pearson $r$ (pairwise distances)",
      "y": "cap_cos_lift", "y_label": "semantic: caption-cosine lift over chance",
@@ -122,7 +115,6 @@ def emit_pareto_scatter(
         return
     df = pd.read_csv(grid_csv)
 
-    # Filter to one row per (recipe, encoder pair) at the recipe's scope.
     rows = []
     for exp, label in RECIPE_LABELS.items():
         scope = RECIPE_SCOPE[exp]
@@ -170,7 +162,6 @@ def emit_pareto_scatter(
                         ax=ax, palette=palette, s=55, edgecolor="white",
                         linewidth=0.6, alpha=0.85)
 
-        # Pareto front (maximise both axes).
         pts = sub[[p["x"], p["y"]]].values.astype(float)
         front_idx = pareto_front(pts)
         if front_idx.size >= 2:
@@ -181,7 +172,6 @@ def emit_pareto_scatter(
                        facecolor="none", edgecolor="black", s=120,
                        linewidth=1.0, zorder=5)
 
-        # Global + per-recipe Pearson r between the two axes.
         global_r = _pearson_safe(sub[p["x"]].values, sub[p["y"]].values)
         annot_lines = [f"global $r$ = {global_r:+.2f}"]
         for recipe in palette.keys():
@@ -221,9 +211,6 @@ def emit_pareto_scatter(
     print(f"[tradeoff] wrote {out}")
 
 
-# ----------------------------------------------------------------------------
-# A.b Structure-vs-semantics scatter (focused orthogonality figure)
-# ----------------------------------------------------------------------------
 # Encoder families used for marker style. "Text-aligned" = trained with
 # a text contrastive objective on the same side (CLIP for images, CLAP
 # for audio). "Text-free" = self-supervised, no text contact (DINOv2,
@@ -262,13 +249,11 @@ def _pearson_safe(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.corrcoef(x, y)[0, 1])
 
 
-# Structural X axes (properties the plan preserves).
 STRUCT_AXES = [
     {"col": "ami",         "label": "structural: AMI",          "slug": "ami"},
     {"col": "pearson_r",   "label": "structural: Pearson $r$",  "slug": "pearson_r"},
 ]
 
-# Y axes spanning the strict-to-coarse alignment-quality spectrum.
 # ``__routes_ratio`` is computed inline as routes_correct / routes_total.
 Y_AXES = [
     {"col": "R@10",            "label": "identity: $R@10$",
@@ -315,7 +300,6 @@ def _emit_single_tradeoff_panel(
 
     fig, ax = plt.subplots(1, 1, figsize=(7.0, 6.0))
 
-    # Per-recipe scatter, per-family marker.
     for recipe, color in palette.items():
         for family, marker in _FAMILY_MARKERS.items():
             cell = sub[(sub.recipe == recipe) & (sub.family == family)]
@@ -325,7 +309,6 @@ def _emit_single_tradeoff_panel(
                        color=color, marker=marker, s=72,
                        edgecolor="white", linewidth=0.7, alpha=0.9)
 
-    # Per-recipe regression line (no CI, line-only).
     for recipe, color in palette.items():
         rec_sub = sub[sub.recipe == recipe].dropna(subset=[x_col, y_col])
         if len(rec_sub) >= 3:
@@ -334,7 +317,6 @@ def _emit_single_tradeoff_panel(
                         line_kws={"color": color, "lw": 1.2,
                                   "alpha": 0.55})
 
-    # Global + per-recipe Pearson r annotation.
     global_r = _pearson_safe(sub[x_col].values, sub[y_col].values)
     annot_lines = [f"global $r$ = {global_r:+.2f}"]
     for recipe in palette.keys():
@@ -360,7 +342,6 @@ def _emit_single_tradeoff_panel(
                  fontsize=12)
     sns.despine(ax=ax)
 
-    # Two-block legend below the axis: recipe (colour) + encoder family (marker).
     from matplotlib.lines import Line2D
     recipe_handles = [
         Line2D([], [], color=color, marker="o", linestyle="None",
@@ -408,7 +389,6 @@ def emit_structure_vs_semantics(
         return
     df = pd.read_csv(grid_csv)
     df = _add_routes_ratio(df)
-
     rows = []
     for exp, label in RECIPE_LABELS.items():
         scope = RECIPE_SCOPE[exp]
@@ -451,9 +431,6 @@ def emit_structure_vs_semantics(
             )
 
 
-# ----------------------------------------------------------------------------
-# B. Alpha-curve trajectories per recipe (FGW knob as trade-off lever)
-# ----------------------------------------------------------------------------
 # Per-recipe sweep CSV and the K row at which to trace alpha. C-direct
 # admits a full K-sweep; D / A / B have only one effective K.
 ALPHA_SOURCES = [
@@ -510,7 +487,6 @@ def emit_alpha_curves(
                     label=src["label"])
             ax.scatter(xs, ys, color=color, s=45, edgecolor="white",
                        linewidth=0.6, zorder=5)
-            # Label each marker with its alpha value.
             for x, y, a in zip(xs, ys, sub["alpha"].values):
                 ax.annotate(f"$\\alpha={a:.1f}$",
                             xy=(x, y), xytext=(4, 4),
@@ -538,9 +514,6 @@ def emit_alpha_curves(
     print(f"[tradeoff] wrote {out}")
 
 
-# ----------------------------------------------------------------------------
-# C. Recipe-level alignment vs pre-alignment encoder similarity (CKA)
-# ----------------------------------------------------------------------------
 # CKA is computed once per encoder pair, before any recipe is applied;
 # it is a property of the two embedding spaces themselves. Plotting each
 # recipe's alignment metrics against CKA answers the question
@@ -567,7 +540,6 @@ def emit_cka_vs_recipe(
     df_grid = pd.read_csv(grid_csv)
     df_cka  = pd.read_csv(cka_csv)
 
-    # Merge per-cell metrics with the CKA / identity-Pearson values.
     merged_rows = []
     for exp, label in RECIPE_LABELS.items():
         scope = RECIPE_SCOPE[exp]
@@ -598,8 +570,6 @@ def emit_cka_vs_recipe(
     palette = dict(zip(RECIPE_LABELS.values(),
                        sns.color_palette("colorblind", n_colors=len(RECIPE_LABELS))))
 
-    # Top row: structural & identity axes.
-    # Bottom row: semantic axis (if populated).
     has_cap = not df_m["cap_cos_lift"].isna().all()
     n_rows = 2 if has_cap else 1
     fig, axes = plt.subplots(n_rows, 3,
@@ -625,7 +595,6 @@ def emit_cka_vs_recipe(
                             ax=ax, ci=None, scatter=False,
                             line_kws={"color": color, "lw": 1.2,
                                       "alpha": 0.55})
-        # Global + per-recipe Pearson r annotation.
         global_r = _pearson_safe(sub[x_col].values, sub[y_col].values)
         annot_lines = [f"global $r$ = {global_r:+.2f}"]
         for recipe in palette.keys():
@@ -649,7 +618,6 @@ def emit_cka_vs_recipe(
         ax.set_title(title, fontsize=10)
         sns.despine(ax=ax)
 
-    # Top row: structural (Pearson r), structural (AMI), identity (R@10).
     _scatter_with_trend(axes[0, 0], df_m, "cka", "pearson_r",
                         ylabel=r"structural: Pearson $r$",
                         title=r"Recipe structural ($r$) vs encoder CKA")
@@ -660,14 +628,10 @@ def emit_cka_vs_recipe(
                         ylabel=r"identity: $R@10$",
                         title=r"Recipe identity ($R@10$) vs encoder CKA")
 
-    # Bottom row: semantic (cap_cos_lift) — three views of the same axis
-    # so the figure is informative even before the rerun by leaving
-    # other slots blank.
     if has_cap:
         _scatter_with_trend(axes[1, 0], df_m, "cka", "cap_cos_lift",
                             ylabel=r"semantic: caption-cosine lift",
                             title=r"Recipe semantic (caption lift) vs encoder CKA")
-        # Combined view: structural Pearson r vs semantic, coloured by CKA.
         ax = axes[1, 1]
         sub_c = df_m.dropna(subset=["pearson_r", "cap_cos_lift"])
         if not sub_c.empty:
@@ -708,7 +672,6 @@ def emit_cka_vs_recipe(
         else:
             ax.set_axis_off()
 
-    # Single figure-level recipe legend at the bottom, shared across panels.
     from matplotlib.lines import Line2D
     recipe_handles = [
         Line2D([], [], color=color, marker="o", linestyle="None",
@@ -732,9 +695,6 @@ def emit_cka_vs_recipe(
     print(f"[tradeoff] wrote {out}")
 
 
-# ----------------------------------------------------------------------------
-# CLI
-# ----------------------------------------------------------------------------
 def main() -> None:
     PLOT_DIR.mkdir(parents=True, exist_ok=True)
     emit_pareto_scatter()

@@ -59,9 +59,9 @@ PLOT_DIR = RES / "exp_grid" / "plots"
 
 ALPHA_GRID = [0.0, 0.3, 0.5, 0.7, 0.9]
 
-# Encoder regimes. ``suffix`` is the cross-modal pair suffix (used by
-# every recipe that consumes both modalities at once); ``leg_a`` and
-# ``leg_b`` are the per-side suffixes used by exp_a / exp_b.
+# ``suffix`` is the cross-modal pair suffix (used by every recipe that
+# consumes both modalities at once); ``leg_a`` and ``leg_b`` are the
+# per-side suffixes used by exp_a / exp_b.
 PAIRS = {
     "canonical": {
         "suffix":   "",
@@ -79,7 +79,6 @@ PAIRS = {
     },
 }
 
-# Coarse -> fine ordering.
 METRICS = [
     ("__routes_ratio", "Routes (correct / $K_{cl}$)\n[cluster level]"),
     ("cat_precision_10",  "Cat-prec@10\n[category level]"),
@@ -87,8 +86,8 @@ METRICS = [
     ("pearson_r",      "Pearson $r$\n[structural / continuous]"),
 ]
 
-# Line styles per recipe: shared across regimes so colour identifies
-# the regime and the (linestyle, marker) pair identifies the recipe.
+# Shared across regimes so colour identifies the regime and the
+# (linestyle, marker) pair identifies the recipe.
 LS_TRANSITIVE = "-"
 LS_D          = "--"
 LS_LEG_A      = ":"
@@ -155,7 +154,6 @@ def render(out_path: Path, K: int,
             color = pair_spec["color"]
             suffix = pair_spec["suffix"]
 
-            # Transitive Transport Bridge (alpha sweep at K).
             xs, ys = _alpha_series(
                 RES / f"exp_c{suffix}" / "sweep_transitive.csv",
                 scope_composed, col, K)
@@ -165,7 +163,6 @@ def render(out_path: Path, K: int,
                         lw=1.8, ls=LS_TRANSITIVE,
                         color=color, zorder=5)
 
-            # Caption-Distance FGW (alpha sweep, K-independent).
             xs, ys = _alpha_series(
                 RES / f"exp_d{suffix}" / "sweep.csv",
                 scope_composed, col, None)
@@ -175,8 +172,6 @@ def render(out_path: Path, K: int,
                         lw=1.4, ls=LS_D,
                         color=color, alpha=0.9, zorder=4)
 
-            # Leg A FGW (alpha sweep at K). Note: per-leg scope is
-            # ``heldout``, not ``heldout``.
             xs, ys = _alpha_series(
                 RES / f"exp_a{pair_spec['leg_a']}" / "sweep.csv",
                 scope_leg, col, K)
@@ -186,7 +181,6 @@ def render(out_path: Path, K: int,
                         lw=1.2, ls=LS_LEG_A,
                         color=color, alpha=0.85, zorder=3)
 
-            # Leg B FGW (alpha sweep at K), same scope caveat.
             xs, ys = _alpha_series(
                 RES / f"exp_b{pair_spec['leg_b']}" / "sweep.csv",
                 scope_leg, col, K)
@@ -196,7 +190,6 @@ def render(out_path: Path, K: int,
                         lw=1.2, ls=LS_LEG_B,
                         color=color, alpha=0.85, zorder=3)
 
-            # Pure-GW: single point at alpha = 1.
             v = _single_value(RES / f"exp_unsup{suffix}" / "sweep.csv",
                               scope_composed, col)
             if np.isfinite(v):
@@ -205,14 +198,12 @@ def render(out_path: Path, K: int,
                         color=color, markeredgecolor="black",
                         markeredgewidth=0.6, linestyle="None", zorder=6)
 
-            # Random floor: horizontal reference.
             v = _single_value(RES / f"exp_random{suffix}" / "sweep.csv",
                               scope_composed, col)
             if np.isfinite(v):
                 ax.axhline(v, color=color, lw=1.0, ls=LS_RANDOM,
                            alpha=0.55, zorder=1)
 
-            # Text-only ceiling: horizontal reference.
             v = _single_value(RES / f"exp_text{suffix}" / "sweep.csv",
                               scope_composed, col)
             if np.isfinite(v):
@@ -235,7 +226,6 @@ def render(out_path: Path, K: int,
         plt.close(fig)
         return
 
-    # Two legends: regime colour on the left, recipe shape on the right.
     pair_handles = [
         Line2D([], [], color=PAIRS[k]["color"], lw=2.6,
                label=PAIRS[k]["label"])

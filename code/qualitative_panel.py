@@ -37,15 +37,10 @@ RES = ROOT / "results"
 MANIFEST = DATA / "manifest.csv"
 
 
-# Canonical encoders for the plate. The plate itself is encoder-fixed
-# (no point in mixing encoders when comparing methods).
 IMG_ENC = "clip-large"
 AUD_ENC = "clap-unfused"
 
 
-# Plan registry. Each entry maps a human-readable method label to the
-# saved plan it consumes plus a short token used in the output filename.
-# `random` is synthesised in-memory (no saved plan).
 METHODS = [
     {"label": "FGW with caption cost",
      "short": "fgw-cap",
@@ -68,7 +63,6 @@ METHODS = [
 ]
 
 
-# ---------- data loaders ---------------------------------------------------
 def load_manifest() -> list[dict]:
     rows: list[dict] = []
     with MANIFEST.open() as f:
@@ -93,7 +87,6 @@ def synth_random_plan(n: int, seed: int) -> np.ndarray:
     return plan
 
 
-# ---------- rendering helpers ---------------------------------------------
 def _truncate(s: str, n: int = 80) -> str:
     return s if len(s) <= n else s[: n - 1].rstrip() + "…"
 
@@ -143,7 +136,6 @@ def _render_text(ax, text: str) -> None:
             ha="left", va="center", fontsize=7, transform=ax.transAxes)
 
 
-# ---------- retrieval -----------------------------------------------------
 def retrieve_top1(query_idx: int, plan: np.ndarray,
                   direction: str) -> tuple[int, float]:
     """Return (target_idx, score) for the top-1 retrieval, self-suppressed.
@@ -158,13 +150,12 @@ def retrieve_top1(query_idx: int, plan: np.ndarray,
         row = plan[:, query_idx].copy()
     else:
         raise ValueError(direction)
-    row[query_idx] = -np.inf  # suppress self-match
+    row[query_idx] = -np.inf
     j = int(np.argmax(row))
     return j, float(plan[query_idx, j] if direction == "image_to_audio"
                     else plan[j, query_idx])
 
 
-# ---------- the plate -----------------------------------------------------
 def build_plate(query_ids: list[str], direction: str, out: Path,
                 random_seed: int = 0) -> None:
     manifest = load_manifest()
@@ -172,10 +163,6 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
     ids = [m["clip_id"] for m in manifest]
     qrows = [ids.index(c) for c in query_ids]
 
-    # Load embeddings (only needed to know n; rendering uses the manifest).
-    # We do not need X / Y at render time because all retrieval is done on T.
-
-    # Load all plans up-front; replace random with a synth.
     loaded: list[dict] = []
     for m in METHODS:
         if m["short"] == "random":
@@ -194,7 +181,7 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
         raise SystemExit("[err] no methods to render")
 
     n_rows = len(loaded)
-    n_cols = 1 + len(qrows)        # one column for the query, plus N retrievals
+    n_cols = 1 + len(qrows)
     fig = plt.figure(
         figsize=(2.5 * n_cols + 0.2, 1.9 * n_rows + 0.6),
         constrained_layout=False,
@@ -207,7 +194,6 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
         left=0.02, right=0.99, top=0.95, bottom=0.03,
     )
 
-    # ----- column headers: the queries themselves -----
     hax = fig.add_subplot(gs[0, 0]); hax.axis("off")
     hax.text(0.5, 0.5, "method", ha="center", va="center",
              fontsize=9, fontweight="bold")
@@ -218,15 +204,12 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
                 f"query #{col}\nclip {manifest[q_idx]['clip_id']}",
                 ha="center", va="center", fontsize=8, fontweight="bold")
 
-    # ----- one row per method -----
     for r_idx, m in enumerate(loaded, start=1):
-        # Row label cell
         rax = fig.add_subplot(gs[r_idx, 0])
         rax.axis("off")
         label_wrapped = textwrap.fill(m["label"], width=18)
         rax.text(1.0, 0.5, label_wrapped, ha="right", va="center",
                  fontsize=8.5, fontweight="bold")
-        # Per-query retrieval cell
         for col, q_idx in enumerate(qrows, start=1):
             ax = fig.add_subplot(gs[r_idx, col])
             tgt, score = retrieve_top1(q_idx, m["T"], direction)
@@ -240,7 +223,6 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
                 _render_image(ax, item["frame_path"],
                               title=sub_title, border=border)
 
-    # ----- footer with rendering metadata -----
     direction_str = ("Image $\\to$ Audio" if direction == "image_to_audio"
                      else "Audio $\\to$ Image")
     fig.text(0.5, 0.005,
@@ -254,7 +236,6 @@ def build_plate(query_ids: list[str], direction: str, out: Path,
     print(f"[panel] wrote {out}")
 
 
-# ---------- CLI -----------------------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--direction", choices=["image_to_audio", "audio_to_image"],

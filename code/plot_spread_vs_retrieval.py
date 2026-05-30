@@ -121,7 +121,6 @@ def render(out_path: Path, K: int) -> None:
             ys = np.array([Y[a] for a in common_alphas])
             any_data = True
 
-            # Connecting line, in order of alpha along the curve.
             ax.plot(xs, ys, lw=1.8, color=color, alpha=0.75, zorder=3)
             ax.scatter(xs, ys, s=90, color=color, edgecolor="black",
                        linewidth=0.7, zorder=4,
@@ -129,7 +128,6 @@ def render(out_path: Path, K: int) -> None:
                              if pair_key not in legend_pair_seen else None)
             legend_pair_seen.add(pair_key)
 
-            # Annotate each marker with its alpha.
             for a, x, y in zip(common_alphas, xs, ys):
                 ax.annotate(
                     rf"$\alpha={a:.1f}$",
@@ -139,7 +137,6 @@ def render(out_path: Path, K: int) -> None:
                     alpha=0.9,
                 )
 
-            # Highlight the peak with a star.
             i_peak = int(np.nanargmax(ys))
             ax.scatter([xs[i_peak]], [ys[i_peak]], s=260, marker="*",
                        facecolor=color, edgecolor="black",

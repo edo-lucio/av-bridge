@@ -70,7 +70,7 @@ PAIRS = {
     },
 }
 
-# (csv column, display label).  ``__precision_10`` = R@10 / 10
+# ``__precision_10`` = R@10 / 10
 # (instance precision@10 under single-ground-truth-per-query).
 METRICS = [
     ("R@10",              "$R@10$"),
@@ -135,7 +135,6 @@ def render(out_path: Path, scope: str, K: int) -> None:
             suffix = pair_spec["suffix"]
             color = pair_spec["color"]
 
-            # Transitive bridge alpha sweep (composed plan), at fixed K.
             xs, ys = _sweep(
                 RES / f"exp_c{suffix}" / "sweep_transitive.csv",
                 scope, col, K)
@@ -165,14 +164,12 @@ def render(out_path: Path, scope: str, K: int) -> None:
                         markeredgewidth=0.7, linestyle="None",
                         zorder=5)
 
-            # Text-only horizontal reference.
             v_text = _point(
                 RES / f"exp_text{suffix}" / "sweep.csv", scope, col)
             if np.isfinite(v_text):
                 ax.axhline(v_text, color=color, lw=1.0, ls="--",
                            alpha=0.5, zorder=2)
 
-            # Random horizontal reference.
             v_rand = _point(
                 RES / f"exp_random{suffix}" / "sweep.csv", scope, col)
             if np.isfinite(v_rand):

@@ -1,2 +1,2 @@
 method,plan,pearson_r_full,n_pairs,n_subsample
-D — caption-cost FGW,results/exp_d/T_caption.npy,0.42670607566833496,79800,40000
+Caption-Distance FGW,results/exp_d/T_caption.npy,0.42670607566833496,79800,40000

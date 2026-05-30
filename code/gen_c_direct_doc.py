@@ -35,7 +35,6 @@ def render_encoder_grid_table(scope: str = "heldout") -> str:
 
     df = df.sort_values("R@10", ascending=False)
 
-    # Bold best per metric column (across the full grid).
     best = {m: df[m].max() for m in ["R@1", "R@10", "R@20", "ami",
                                      "pearson_r", "knn_overlap"]}
 

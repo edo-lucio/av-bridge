@@ -1,2 +1,2 @@
 method,plan,pearson_r_full,n_pairs,n_subsample
-C-transitive — text bridge,results/exp_c/T_transitive.npy,0.4838075339794159,79800,40000
+Transitive bridge,results/exp_c/T_transitive.npy,0.15672408044338226,79800,40000

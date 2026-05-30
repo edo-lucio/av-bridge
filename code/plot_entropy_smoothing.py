@@ -64,11 +64,10 @@ PAIRS = {
     },
 }
 
-# Colours: legs warm-cool to contrast with composed bridge.
-COL_LEG_A = "#1f77b4"   # blue, Leg A entropy
-COL_LEG_B = "#9467bd"   # purple, Leg B entropy
-COL_GEO   = "#7f7f7f"   # grey, geometric mean
-COL_COMP  = "#d62728"   # red, composed bridge R@10
+COL_LEG_A = "#1f77b4"
+COL_LEG_B = "#9467bd"
+COL_GEO   = "#7f7f7f"
+COL_COMP  = "#d62728"
 
 
 def _leg_entropy_series(leg_key: str, suffix: str, K: int,
@@ -110,7 +109,6 @@ def render(out_path: Path, K: int,
         ax = axes[0, col_idx]
         ax_r = ax.twinx()
 
-        # Leg entropies.
         xs_a, ys_a = _leg_entropy_series(
             "a", pair_spec["a_suffix"], K, scope_leg)
         xs_b, ys_b = _leg_entropy_series(
@@ -127,14 +125,12 @@ def render(out_path: Path, K: int,
             ax.plot(xs_a, geo, ls="--", marker="x", lw=1.4, color=COL_GEO,
                     alpha=0.85, label="geometric mean")
 
-        # Composed R@10 on the right axis.
         xs_c, ys_c = _composed_r10_series(
             pair_spec["c_suffix"], K, scope_composed)
         if xs_c.size:
             any_data = True
             ax_r.plot(xs_c, ys_c, marker="D", lw=2.0, color=COL_COMP,
                       label=f"Composed bridge $R@10$ (K={K})")
-            # Mark the argmax with a vertical reference.
             i_peak = int(np.nanargmax(ys_c))
             ax_r.axvline(xs_c[i_peak], color=COL_COMP, ls=":", lw=1.0,
                          alpha=0.55)

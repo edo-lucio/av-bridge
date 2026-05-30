@@ -61,11 +61,9 @@ def _discover_pairs() -> list[dict]:
     suffixes: set[str] = set()
     for p in RES.glob("exp_c_idbridge*/sweep.csv"):
         suffixes.add(p.parent.name.removeprefix("exp_c_idbridge"))
-    # Cosine-bridge directories are exp_c[__<img>__<aud>]/sweep_transitive.csv
-    # but the suffix must NOT belong to a different recipe (e.g. exp_c_idbridge).
+    # The suffix must NOT belong to a different recipe (e.g. exp_c_idbridge).
     for p in RES.glob("exp_c*/sweep_transitive.csv"):
         tail = p.parent.name.removeprefix("exp_c")
-        # Exclude exp_c_idbridge* paths.
         if tail.startswith("_idbridge"):
             continue
         suffixes.add(tail)
@@ -74,7 +72,6 @@ def _discover_pairs() -> list[dict]:
         if suffix == "":
             label_img, label_aud = "CLIP-L/14", "CLAP-unfused"
         else:
-            # "__<img>__<aud>" -> ("<img>", "<aud>")
             parts = suffix.removeprefix("__").split("__")
             if len(parts) != 2:
                 continue
@@ -90,7 +87,6 @@ def _discover_pairs() -> list[dict]:
 
 PAIRS = _discover_pairs()
 
-# (scope-key-in-cosine-csv, scope-key-in-identity-csv, display-label)
 SCOPES = [
     ("aggregate", "aggregate",      "aggregate"),
     ("heldout",   "heldout", "held-out"),
@@ -155,7 +151,6 @@ def main() -> None:
                 edgecolor="white",
             )
 
-            # Number labels above each bar.
             for bars, vals in [(b1, cos_vals), (b2, id_vals)]:
                 for rect, v in zip(bars, vals):
                     if np.isnan(v):
@@ -182,7 +177,6 @@ def main() -> None:
         plt.close(fig)
         return
 
-    # Single shared legend at the bottom (one entry per bridge type).
     handles = [
         plt.Rectangle((0, 0), 1, 1,
                       facecolor=BRIDGE_PALETTE[k], edgecolor="white")

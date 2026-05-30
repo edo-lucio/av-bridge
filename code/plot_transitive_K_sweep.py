@@ -39,7 +39,6 @@ RES = ROOT / "results"
 PLOT_DIR = RES / "exp_grid" / "plots"
 
 
-# Encoder pairs and their suffix conventions.
 PAIRS = {
     "canonical": {"suffix": "",
                   "label":  "text-grounded (CLIP-L $\\times$ CLAP-unfused)"},
@@ -47,33 +46,22 @@ PAIRS = {
                   "label":  "text-free (DINOv2-L $\\times$ MERT-330m)"},
 }
 
-# Metrics: (csv_column, display_label, axis_lo, axis_hi_or_None).
-# Special key ``__precision_10`` is computed inline as R@10 / 10 ---
-# instance precision@10 under the single-ground-truth-per-query
-# convention of AVCaps. Shown alongside Cat-prec@10 to make the
-# "instance vs categorical precision at the same retrieval depth"
-# comparison directly readable. Both bounds are None so the y-axis
-# auto-fits the data range, including negative values (Pearson $r$ on
-# noisy plans).
+# Both bounds are None so the y-axis auto-fits the data range.
 METRICS = [
-    ("R@10",            "$R@10$",                       None, None),
-    ("cat_precision_10","Cat-prec@10 (class)",          None, None),
-    ("__precision_10",  "Prec@10 (instance)",           None, None),
-    ("pearson_r",       "Pearson $r$",                  None, None),
+    ("R@10",            "$R@10$",  None, None),
+    ("cat_precision_10","Cat@10",  None, None),
 ]
 
-# Other recipes to draw as horizontal reference lines, with the per-recipe
-# CSV path (relative to a pair suffix) and the row-selection scheme.
 REFERENCE_RECIPES = [
     {"key":     "random",
      "label":   "Random (baseline)",
      "csv":     "exp_random{suffix}/sweep.csv",
-     "select":  {"K": 0},               # one row per scope
+     "select":  {"K": 0},
      "ls":      ":"},
     {"key":     "d",
      "label":   "Caption Distance FGW",
      "csv":     "exp_d{suffix}/sweep.csv",
-     "select":  None,                   # picks by alpha (see below)
+     "select":  None,
      "ls":      "--",
      "needs_alpha": True},
     {"key":     "unsup",
@@ -85,15 +73,15 @@ REFERENCE_RECIPES = [
      "label":   "Text-only (ceiling)",
      "csv":     "exp_text{suffix}/sweep.csv",
      "select":  {"K": 0},
-     "ls":      (0, (3, 1, 1, 1))},     # dash-dot-dot
+     "ls":      (0, (3, 1, 1, 1))},
 ]
 
 PALETTE = {
-    "c-transitive": "#2a7fff",   # blue, the protagonist
-    "random":       "#777777",   # grey
-    "d":            "#dd8452",   # orange
-    "unsup":        "#55a868",   # green
-    "text":         "#c44e52",   # red
+    "c-transitive": "#2a7fff",
+    "random":       "#777777",
+    "d":            "#dd8452",
+    "unsup":        "#55a868",
+    "text":         "#c44e52",
 }
 
 
@@ -175,7 +163,6 @@ def render(out_path: Path, pair_keys: list[str],
                         ls="--", color=PALETTE["c-transitive"], alpha=0.4,
                         label="Transitive (in-sample)")
 
-            # Held-out curve.
             if not df_tr.empty:
                 ys = [_metric_from_row(r, col) for _, r in df_tr.iterrows()]
                 xs = df_tr["K"].values
@@ -183,7 +170,6 @@ def render(out_path: Path, pair_keys: list[str],
                         color=PALETTE["c-transitive"],
                         label="Transitive (held-out)")
 
-            # Horizontal reference lines for the other recipes.
             for rec in REFERENCE_RECIPES:
                 v = _load_reference_value(rec, suffix, alpha, scope, col)
                 if not np.isfinite(v):
@@ -217,7 +203,6 @@ def render(out_path: Path, pair_keys: list[str],
         plt.close(fig)
         return
 
-    # Shared bottom legend from the first non-empty panel.
     handles, labels = [], []
     for ax in axes.flat:
         h, l = ax.get_legend_handles_labels()
@@ -233,7 +218,7 @@ def render(out_path: Path, pair_keys: list[str],
                fontsize=9, frameon=False)
 
     fig.suptitle(
-        rf"Transitive Transport Bridge --- K sweep at $\alpha = {alpha}$ "
+        rf"Transitive Transport Bridge K sweep at $\alpha = {alpha}$ "
         rf"(held-out solid, in-sample dashed; "
         rf"scope = {scope.replace('_', ' ')})",
         fontsize=13, y=1.005,

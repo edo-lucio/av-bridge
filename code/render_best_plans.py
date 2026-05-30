@@ -72,9 +72,6 @@ from run_experiments import (
 )
 
 
-# Per-experiment scope used to rank cells. C-direct's grid has a true
-# held-out partition; the others have a same-rows (`heldout`)
-# view that puts D / Unsup / Text on the same 100-row reference.
 EXP_SCOPE = {
     "c-direct": "heldout",
     "d":        "heldout",
@@ -82,11 +79,9 @@ EXP_SCOPE = {
     "text":     "heldout",
 }
 
-# Canonical operating point of each experiment.
 EXP_ALPHA = {"c-direct": 0.5, "d": 0.7, "unsup": 1.0, "text": float("nan")}
 
 
-# ------------------------- best-cell selection ----------------------------
 def pick_pair_for(df: pd.DataFrame, exp: str, scope: str,
                   metric: str, rank: str = "best",
                   ) -> tuple[str, str, float] | None:
@@ -110,7 +105,6 @@ def best_pair_for(df: pd.DataFrame, exp: str, scope: str, metric: str):
     return pick_pair_for(df, exp, scope, metric, rank="best")
 
 
-# ------------------------- plan builders ----------------------------------
 def _load_pair(img: str, aud: str) -> tuple[np.ndarray, np.ndarray,
                                             np.ndarray, np.ndarray]:
     """Load X, Y, Z_vis, Z_aud, anchored to the canonical n = 400 row order
@@ -142,7 +136,6 @@ def build_plan(exp: str, img: str, aud: str) -> np.ndarray:
     raise ValueError(f"unknown experiment: {exp!r}")
 
 
-# ------------------------- stratified clip sample -------------------------
 def stratified_clip_sample(image_encoder: str, n: int = 12,
                            seed: int = SEED) -> list[str]:
     """Pick `n` clips that diversify the visual content space.
@@ -156,7 +149,6 @@ def stratified_clip_sample(image_encoder: str, n: int = 12,
                                     n_clusters=min(10, n), seed=seed)
     idx = sorted(int(i) for i in idx)
 
-    # Cross-reference against the manifest to get clip_ids in row order.
     import csv as _csv
     rows: list[str] = []
     with (ROOT / "data" / "manifest.csv").open() as f:
@@ -165,7 +157,6 @@ def stratified_clip_sample(image_encoder: str, n: int = 12,
     return [rows[i] for i in idx]
 
 
-# ------------------------- driver -----------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--grid-csv", type=str,

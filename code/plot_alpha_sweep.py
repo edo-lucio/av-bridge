@@ -38,8 +38,8 @@ PLOT_DIR = RES / "exp_grid" / "plots"
 
 ALPHA_GRID = [0.0, 0.3, 0.5, 0.7, 0.9]
 
-# Encoder pair colours.  Same convention as plot_transitive_K_sweep's
-# merged variant: blue = canonical, orange = text-free.
+# Same convention as plot_transitive_K_sweep's merged variant: blue =
+# canonical, orange = text-free.
 PAIRS = {
     "canonical": {"suffix": "",
                   "label":  "text-grounded (CLIP-L $\\times$ CLAP-unfused)",
@@ -56,8 +56,8 @@ METRICS = [
     ("pearson_r",       "Pearson $r$"),
 ]
 
-# Line styles per recipe: shared across pairs so colour identifies pair
-# and line style identifies recipe.
+# Shared across pairs so colour identifies pair and line style identifies
+# recipe.
 LS_TRANSITIVE = "-"
 LS_D          = "--"
 LS_RANDOM     = ":"
@@ -134,26 +134,22 @@ def render(out_path: Path, K: int, scope: str) -> None:
             suffix = pair_spec["suffix"]
             color = pair_spec["color"]
 
-            # Transitive Transport Bridge alpha sweep at fixed K.
             xs, ys = _transitive_alpha_series(suffix, K, scope, col)
             if xs.size:
                 any_data = True
                 ax.plot(xs, ys, marker="o", lw=1.8, ls=LS_TRANSITIVE,
                         color=color, zorder=3)
 
-            # Caption-Distance FGW alpha sweep (no K).
             xs_d, ys_d = _d_alpha_series(suffix, scope, col)
             if xs_d.size:
                 any_data = True
                 ax.plot(xs_d, ys_d, marker="s", markersize=5, lw=1.4,
                         ls=LS_D, color=color, alpha=0.85, zorder=3)
 
-            # Random floor.
             v = _single_recipe_value(suffix, "random", scope, col)
             if np.isfinite(v):
                 ax.axhline(v, color=color, lw=1.2, ls=LS_RANDOM,
                            alpha=0.65, zorder=2)
-            # Text-only ceiling.
             v = _single_recipe_value(suffix, "text", scope, col)
             if np.isfinite(v):
                 ax.axhline(v, color=color, lw=1.2, ls=LS_TEXT,
@@ -172,7 +168,6 @@ def render(out_path: Path, K: int, scope: str) -> None:
         plt.close(fig)
         return
 
-    # Two-block legend: pair colour on the left, recipe line style on the right.
     pair_handles = [
         Line2D([], [], color=PAIRS[k]["color"], lw=2.2, label=PAIRS[k]["label"])
         for k in PAIRS.keys()

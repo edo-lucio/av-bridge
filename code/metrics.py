@@ -134,7 +134,6 @@ def caption_agreement(
     if Z_src.shape[0] != h or Z_tgt.shape[0] != m:
         return NAN_OUT
 
-    # Normalise once: dot product == cosine. Skip if already unit-norm.
     def _l2norm(M: np.ndarray) -> np.ndarray:
         norms = np.linalg.norm(M, axis=1, keepdims=True)
         norms[norms < 1e-12] = 1.0
@@ -143,25 +142,20 @@ def caption_agreement(
     Zs = _l2norm(Z_src.astype(np.float64))
     Zt = _l2norm(Z_tgt.astype(np.float64))
 
-    # Full (h x m) cosine matrix between source and target captions.
-    # At h, m <= 400 this is trivial in time and memory.
     C = Zs @ Zt.T
 
-    # 1. Argmax-partner cosine.
     partners = T.argmax(axis=1)
     argmax_cos = C[np.arange(h), partners]
 
-    # 2. Plan-mass-weighted cosine. Row-normalise the plan first so the
-    # mass per source row sums to 1, otherwise rows with low marginal
-    # mass contribute less than they should.
+    # Row-normalise the plan first so the mass per source row sums to 1,
+    # otherwise rows with low marginal mass contribute less than they should.
     row_sums = T.sum(axis=1, keepdims=True)
     row_sums[row_sums < 1e-12] = 1.0
     T_rowstoch = T / row_sums
     planmass_cos = (T_rowstoch * C).sum(axis=1)
 
-    # 3. Identity-permutation reference (the dataset upper bound). On the
-    # full-set call h == m == n and this is C[i, i]; on the held-out call
-    # we cannot read C[i, i] because the held-out source rows are
+    # On the full-set call h == m == n and this is C[i, i]; on the held-out
+    # call we cannot read C[i, i] because the held-out source rows are
     # re-indexed 0..h-1 while their GT partners sit at their original
     # indices in Y. The held-out path therefore supplies Z_src already
     # restricted to the held rows; we approximate the identity by taking
@@ -169,9 +163,6 @@ def caption_agreement(
     identity_cos = (C[np.arange(h), np.arange(h)]
                     if h == m else C.max(axis=1))
 
-    # 4. Random-permutation chance: sample partners uniformly at random
-    # from the m target candidates, recompute the mean argmax-style cosine,
-    # average over draws.
     rng = np.random.default_rng(seed)
     chance_vals = np.empty(n_chance_draws, dtype=np.float64)
     idx = np.arange(h)
@@ -450,7 +441,6 @@ def evaluate_heldout(
             "cat_precision_10": float("nan"),
         }
 
-    # Row-masked recall.
     T_h = T[held]
     gt_h = gt[held]
     r1 = recall_at_k(T_h, gt_h, 1)
@@ -458,11 +448,7 @@ def evaluate_heldout(
     r10 = recall_at_k(T_h, gt_h, 10)
     r20 = recall_at_k(T_h, gt_h, 20)
 
-    # Structural metrics on the held-out subset.
     X_h = X_src[held]
-    # gt[held] indexes into Y_tgt; we evaluate Y_tgt at the partner side.
-    # For cluster_routing we need a remapping: cluster labels for X_h and Y_tgt's full set,
-    # then aggregate plan mass restricted to held rows.
     Kc = min(K_cl, len(X_h), len(Y_tgt))
     if Kc < 2:
         r_correct, r_total = 0, K_cl
@@ -490,7 +476,6 @@ def evaluate_heldout(
                 correct += 1
         r_correct, r_total = correct, Kc
 
-        # knn_overlap on held-out
         Ds = pairwise_distances(X_h)
         Dt = pairwise_distances(Y_tgt)
         k = min(5, len(X_h) - 1, len(Y_tgt) - 1)
@@ -502,7 +487,6 @@ def evaluate_heldout(
             overlaps.append(len(set(mapped) & set(tgt_nn)) / k)
         kno = float(np.mean(overlaps)) if overlaps else float("nan")
 
-        # pearson on held-out, partner side
         Dt_p = pairwise_distances(Y_tgt[partners_h])
         iu = np.triu_indices(len(X_h), k=1)
         a = Ds[iu]
@@ -522,15 +506,13 @@ def evaluate_heldout(
             "completeness": float(completeness_score(src_lab, mapped_h)),
         }
 
-    # Caption agreement on the held-out subset of source rows.
     if Z_src_cap is not None and Z_tgt_cap is not None:
         cap = caption_agreement(T_h, Z_src_cap[held], Z_tgt_cap, seed=seed)
     else:
         cap = dict(_CAPAGREE_NANS)
 
-    # Coarse-retrieval analog of R@10 on the held-out rows. The target
-    # K-means is computed on the *full* target pool (the candidate
-    # set the held-out queries can retrieve into is all of Y_tgt).
+    # The target K-means is computed on the *full* target pool (the
+    # candidate set the held-out queries can retrieve into is all of Y_tgt).
     cat10 = category_precision_at_k(T_h, Y_tgt, gt_h, K_cl, k=10, seed=seed)
 
     return {

@@ -23,9 +23,11 @@ from sklearn.cluster import KMeans
 
 from algorithms import (
     caption_cost_recipe,
+    procrustes_recipe,
     pure_gw,
     random_baseline,
     recipe,
+    ridge_recipe,
     text_only_retrieval,
     transitive_plan_identity,
 )
@@ -40,19 +42,17 @@ random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
 
-# Sweep grids set by the plan (rescaled for n=400).
 K_GRID = [10, 20, 50, 100, 160, 200, 300]
 ALPHA_GRID = [0.0, 0.3, 0.5, 0.7, 0.9]
 
-# K_cl values per experiment, per the spec.
 KCL = {
     "a": 10, "b": 20,
     "c-transitive": 15,
     "d": 15, "unsup": 15, "text": 15,
-    "random": 15,
+    "random": 15, "procrustes": 15, "direct": 15, "cmcr": 15,
 }
 
-# Reusable-plan K for C-transitive (= 300 here, rescaled from spec's 350).
+# Rescaled from spec's 350 for n=400.
 REUSABLE_K = 300
 REUSABLE_ALPHA = 0.7
 
@@ -145,7 +145,6 @@ def fmt_cell(metrics: dict, K_cl: int) -> str:
     return f"{r10:.3f} / {rc}/{K_cl}"
 
 
-# --- Sweep driver ----------------------------------------------------------
 def run_sweep(
     X: np.ndarray,
     Y: np.ndarray,
@@ -204,7 +203,6 @@ def run_sweep(
                 f.flush()
 
 
-# --- Experiments -----------------------------------------------------------
 DEFAULT_IMAGE = "clip-large"
 DEFAULT_AUDIO = "clap-unfused"
 
@@ -237,7 +235,9 @@ def exp_b(audio_name: str, K_grid: list[int] | None = None) -> None:
     print(f"[Exp B] audio={audio_name}  target=audio captions")
     Y_audio = load_embedding(f"audio_{audio_name}")
     ZA = load_embedding("ZA_text")
-    X_image = load_embedding(f"vision_clip-large")  # for shared anchor ordering
+    # Anchor ordering is shared across image-audio experiments by anchoring
+    # to the canonical vision embedding, so B's row order matches A's.
+    X_image = load_embedding(f"vision_clip-large")
     anchors = load_anchors(X_image, n=X_image.shape[0])
     X = Y_audio[anchors]
     Y = ZA[anchors]
@@ -319,9 +319,8 @@ def exp_c_transitive(image_name: str, audio_name: str,
         for K in K_grid:
             if K > n:
                 continue
-            # Per-modality anchor sets at this K. The legs are
-            # independent supervised problems, so each picks its own
-            # stratification on its own source manifold.
+            # The legs are independent supervised problems, so each picks
+            # its own stratification on its own source manifold.
             S_iv = kmeans_stratified_indices(
                 X, n=K, n_clusters=min(10, K), seed=SEED)
             S_ac = kmeans_stratified_indices(
@@ -421,8 +420,6 @@ def exp_d_caption(image_name: str, audio_name: str,
     S_b = kmeans_stratified_indices(Y, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
     S_compare = np.unique(np.concatenate([S_a, S_b]))
 
-    # Persist the heldout-row subset so core-set metric can be computed
-    # on either scope without re-running.
     np.save(out_dir / "heldout_compare_idx.npy", S_compare)
 
     saved_plan = None
@@ -435,7 +432,7 @@ def exp_d_caption(image_name: str, audio_name: str,
             ent = plan_row_entropy(T)
             agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
                            Z_src_cap=ZV, Z_tgt_cap=ZA)
-            # K column is 0: no anchors / no ridge in this experiment.
+            # K=0 sentinel: no anchors / no ridge in this experiment.
             w.writerow({"K": 0, "alpha": alpha, "scope": "aggregate", **agg,
                         "plan_row_entropy": ent})
 
@@ -452,8 +449,6 @@ def exp_d_caption(image_name: str, audio_name: str,
             if abs(alpha - REUSABLE_ALPHA) < 1e-12:
                 saved_plan = T
 
-            # Per-alpha plan save so the core-set metric can be computed
-            # at every alpha cell, not only the canonical one.
             np.save(plans_dir / f"T__a{alpha:.2f}.npy", T)
 
             f.flush()
@@ -518,7 +513,6 @@ def exp_unsupervised_gw(image_name: str, audio_name: str,
         w = csv.DictWriter(f, fieldnames=CSV_COLS)
         w.writeheader()
         ent = plan_row_entropy(T)
-        # K=0 sentinel, alpha=1.0 (pure GW endpoint).
         w.writerow({"K": 0, "alpha": 1.0, "scope": "aggregate", **agg,
                     "plan_row_entropy": ent})
         w.writerow({"K": 0, "alpha": 1.0, "scope": "heldout", **cmp,
@@ -583,7 +577,6 @@ def exp_text_only(image_name: str, audio_name: str,
         w = csv.DictWriter(f, fieldnames=CSV_COLS)
         w.writeheader()
         ent = plan_row_entropy(T)
-        # K=0, alpha=NaN sentinels: no anchors, no FGW blend.
         w.writerow({"K": 0, "alpha": float("nan"), "scope": "aggregate",
                     **agg, "plan_row_entropy": ent})
         w.writerow({"K": 0, "alpha": float("nan"), "scope": "heldout",
@@ -657,6 +650,220 @@ def exp_random(image_name: str, audio_name: str,
     print(f"  wrote {out_dir / 'heldout_compare_idx.npy'}")
 
 
+def exp_cmcr(image_name: str, audio_name: str,
+             out_suffix: str = "") -> None:
+    """C-MCR baseline (Wang et al., NeurIPS 2023): learned text bridge
+    connecting CLIP and CLAP for image -> audio retrieval without any
+    image-audio pairs. End-to-end pretrained, using C-MCR's own encoders.
+
+    The plan is the cosine-similarity matrix between C-MCR's shared-space
+    image and audio embeddings (produced by ``code/encode_cmcr.py`` in a
+    separate env). Like exp_text, the canonical X / Y / captions are passed
+    to ``evaluate`` only so the structural and category metrics are computed
+    on the same rows as every other recipe; they do not enter the plan.
+
+    Text-grounded only: C-MCR connects two text-contrastive encoders, so it
+    has no text-free analogue.
+    """
+    print(f"[Exp C-MCR] learned text bridge (CLIP x CLAP), end-to-end pretrained")
+    try:
+        Vc = load_embedding("cmcr_vision")
+        Ac = load_embedding("cmcr_audio")
+    except FileNotFoundError:
+        print("  ! skip: embeddings/cmcr_{vision,audio}.npy not found. "
+              "Run code/encode_cmcr.py in the C-MCR env first.")
+        return
+
+    X_image = load_embedding(f"vision_{image_name}")
+    Y_audio = load_embedding(f"audio_{audio_name}")
+    ZV = load_embedding("ZV_text")
+    ZA = load_embedding("ZA_text")
+
+    anchors = load_anchors(X_image, n=X_image.shape[0])
+    Vc = Vc[anchors]
+    Ac = Ac[anchors]
+    X = X_image[anchors]
+    Y = Y_audio[anchors]
+    ZV_a = ZV[anchors]
+    ZA_a = ZA[anchors]
+    n = X.shape[0]
+    gt = np.arange(n)
+    K_cl = KCL["cmcr"]
+
+    # Defensive re-normalise, then cosine plan image -> audio in C-MCR space.
+    Vc = Vc / np.maximum(np.linalg.norm(Vc, axis=1, keepdims=True), 1e-12)
+    Ac = Ac / np.maximum(np.linalg.norm(Ac, axis=1, keepdims=True), 1e-12)
+    T = Vc @ Ac.T
+    print(f"  plan shape={T.shape}  range=[{T.min():.3f},{T.max():.3f}]")
+
+    out_dir = RES / f"exp_cmcr{out_suffix}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "sweep.csv"
+
+    S_a = kmeans_stratified_indices(X, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_b = kmeans_stratified_indices(Y, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_compare = np.unique(np.concatenate([S_a, S_b]))
+
+    agg = evaluate(T, X, Y, gt, K_cl, seed=SEED, Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+    cmp = evaluate_heldout(T, X, Y, gt, S_compare, K_cl, seed=SEED,
+                           Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_COLS)
+        w.writeheader()
+        ent = plan_row_entropy(T)
+        w.writerow({"K": 0, "alpha": float("nan"), "scope": "aggregate",
+                    **agg, "plan_row_entropy": ent})
+        w.writerow({"K": 0, "alpha": float("nan"), "scope": "heldout",
+                    **cmp, "plan_row_entropy": ent})
+
+    np.save(out_dir / "T_cmcr.npy", T)
+    np.save(out_dir / "heldout_compare_idx.npy", S_compare)
+    print(f"  wrote {csv_path}")
+    print(f"  wrote {out_dir / 'T_cmcr.npy'}")
+
+
+def exp_direct(image_name: str, audio_name: str,
+               K_grid: list[int] | None = None,
+               out_suffix: str = "") -> None:
+    """Direct ridge comparison: flexible (unconstrained linear) supervised
+    image -> audio alignment fit on the true clip-identity pairs.
+
+    The simplest method that uses the image-audio supervision the bridge
+    forgoes: a ridge map X -> Y, projected and retrieved by cosine. It is
+    the supervised reference ceiling, and the flexible-linear counterpart
+    to Procrustes (which restricts the map to a rotation). K-swept, no
+    alpha; canonical plan saved to ``T_direct.npy``.
+    """
+    print(f"[Exp Direct (ridge supervised image->audio)] "
+          f"image={image_name}  audio={audio_name}")
+
+    X_image = load_embedding(f"vision_{image_name}")
+    Y_audio = load_embedding(f"audio_{audio_name}")
+    ZV = load_embedding("ZV_text")
+    ZA = load_embedding("ZA_text")
+
+    anchors = load_anchors(X_image, n=X_image.shape[0])
+    X = X_image[anchors]
+    Y = Y_audio[anchors]
+    ZV_a = ZV[anchors]
+    ZA_a = ZA[anchors]
+    n = X.shape[0]
+    gt = np.arange(n)
+
+    K_cl = KCL["direct"]
+    K_grid = K_grid or K_GRID
+
+    S_a_compare = kmeans_stratified_indices(
+        X, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_b_compare = kmeans_stratified_indices(
+        Y, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_compare = np.unique(np.concatenate([S_a_compare, S_b_compare]))
+
+    out_dir = RES / f"exp_direct{out_suffix}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "sweep.csv"
+    np.save(out_dir / "heldout_compare_idx.npy", S_compare)
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_COLS)
+        w.writeheader()
+        for K in K_grid:
+            if K > n:
+                continue
+            S = kmeans_stratified_indices(
+                X, n=K, n_clusters=min(10, K), seed=SEED)
+            print(f"  K={K:4d}  ridge fit + cosine retrieval...")
+            T = ridge_recipe(X, Y, S, S, lam=1.0)
+            ent = plan_row_entropy(T)
+            agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
+                           Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+            hel = evaluate_heldout(T, X, Y, gt, S_compare, K_cl, seed=SEED,
+                                   Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+            w.writerow({"K": K, "alpha": float("nan"), "scope": "aggregate",
+                        **agg, "plan_row_entropy": ent})
+            w.writerow({"K": K, "alpha": float("nan"), "scope": "heldout",
+                        **hel, "plan_row_entropy": ent})
+            f.flush()
+            if K == REUSABLE_K:
+                np.save(out_dir / "T_direct.npy", T)
+                print("    saved plan -> T_direct.npy")
+
+    print(f"  wrote {csv_path}")
+    print(f"  wrote heldout subset -> {out_dir / 'heldout_compare_idx.npy'}")
+
+
+def exp_procrustes(image_name: str, audio_name: str,
+                   K_grid: list[int] | None = None,
+                   out_suffix: str = "") -> None:
+    """Procrustes comparison: rigid (semi-orthogonal) supervised image ->
+    audio alignment fit on the true clip-identity pairs.
+
+    A single rotation (+ reflection) maps the image hypersphere onto the
+    audio one, with no distortion allowed -- the classical test of whether
+    two representation spaces coincide up to a rotation. Supervised (uses
+    paired anchors), K-swept, no alpha; written with the alpha=NaN sentinel
+    like the other non-FGW references (Text-only, Random). The canonical
+    plan is saved to ``T_procrustes.npy`` for the comparison plots.
+    """
+    print(f"[Exp Procrustes (rigid supervised image->audio)] "
+          f"image={image_name}  audio={audio_name}")
+
+    X_image = load_embedding(f"vision_{image_name}")
+    Y_audio = load_embedding(f"audio_{audio_name}")
+    ZV = load_embedding("ZV_text")
+    ZA = load_embedding("ZA_text")
+
+    anchors = load_anchors(X_image, n=X_image.shape[0])
+    X = X_image[anchors]
+    Y = Y_audio[anchors]
+    ZV_a = ZV[anchors]
+    ZA_a = ZA[anchors]
+    n = X.shape[0]
+    gt = np.arange(n)
+
+    K_cl = KCL["procrustes"]
+    K_grid = K_grid or K_GRID
+
+    S_a_compare = kmeans_stratified_indices(
+        X, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_b_compare = kmeans_stratified_indices(
+        Y, n=REUSABLE_K, n_clusters=min(10, REUSABLE_K), seed=SEED)
+    S_compare = np.unique(np.concatenate([S_a_compare, S_b_compare]))
+
+    out_dir = RES / f"exp_procrustes{out_suffix}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = out_dir / "sweep.csv"
+    np.save(out_dir / "heldout_compare_idx.npy", S_compare)
+
+    with csv_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=CSV_COLS)
+        w.writeheader()
+        for K in K_grid:
+            if K > n:
+                continue
+            S = kmeans_stratified_indices(
+                X, n=K, n_clusters=min(10, K), seed=SEED)
+            print(f"  K={K:4d}  rigid Procrustes fit...")
+            T = procrustes_recipe(X, Y, S, S)
+            ent = plan_row_entropy(T)
+            agg = evaluate(T, X, Y, gt, K_cl, seed=SEED,
+                           Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+            hel = evaluate_heldout(T, X, Y, gt, S_compare, K_cl, seed=SEED,
+                                   Z_src_cap=ZV_a, Z_tgt_cap=ZA_a)
+            w.writerow({"K": K, "alpha": float("nan"), "scope": "aggregate",
+                        **agg, "plan_row_entropy": ent})
+            w.writerow({"K": K, "alpha": float("nan"), "scope": "heldout",
+                        **hel, "plan_row_entropy": ent})
+            f.flush()
+            if K == REUSABLE_K:
+                np.save(out_dir / "T_procrustes.npy", T)
+                print("    saved plan -> T_procrustes.npy")
+
+    print(f"  wrote {csv_path}")
+    print(f"  wrote heldout subset -> {out_dir / 'heldout_compare_idx.npy'}")
+
+
 def _discover_encoders() -> tuple[list[str], list[str]]:
     """List all (image, audio) encoder names that have a saved embedding."""
     vision = sorted(p.stem.replace("vision_", "") for p in EMB.glob("vision_*.npy"))
@@ -700,8 +907,8 @@ def exp_encoder_grid(
     ZV_full = load_embedding("ZV_text")
     ZA_full = load_embedding("ZA_text")
     K_target = REUSABLE_K
-    alpha_iv = 0.5  # canonical for the sweep experiments
-    alpha_d  = 0.7  # canonical for D (matches RESULTS-headline)
+    alpha_iv = 0.5
+    alpha_d  = 0.7
     eps = 0.005
 
     out_dir = RES / "exp_grid"
@@ -717,12 +924,9 @@ def exp_encoder_grid(
     rows: list[dict] = []
 
     # Cache within-modality plans for C-transitive composition below.
-    # Each entry is the (n, n) plan from image i to its visual-caption (A)
-    # or from audio j to its audio-caption (B) at the canonical (K, alpha).
     t_iv_by_image: dict[str, np.ndarray] = {}
     t_ac_by_audio: dict[str, np.ndarray] = {}
 
-    # ---- Unimodal A: image -> visual-caption text -----------------------
     for img in vision:
         try:
             X_full = load_embedding(f"vision_{img}")
@@ -737,21 +941,20 @@ def exp_encoder_grid(
         gt = np.arange(X.shape[0])
         print(f"  [A] image={img}")
         T = recipe(X, Y, S, S, alpha=alpha_iv, eps=eps, lam=1.0)
-        t_iv_by_image[img] = T  # reused for c-transitive composition
+        t_iv_by_image[img] = T
         for scope, m in [("aggregate", evaluate(T, X, Y, gt, KCL["a"], seed=SEED)),
                          ("heldout",   evaluate_heldout(T, X, Y, gt, S, KCL["a"], seed=SEED))]:
             rows.append({"experiment": "a", "image_encoder": img, "audio_encoder": "—",
                          "K": K_target, "alpha": alpha_iv, "scope": scope, **m})
 
-    # ---- Unimodal B: audio -> audio-caption text ------------------------
     for aud in audio:
         try:
             Y_full = load_embedding(f"audio_{aud}")
         except FileNotFoundError as e:
             print(f"  ! skip B on {aud}: {e}")
             continue
-        # Use the same anchor ordering as A (driven by the default image encoder
-        # if available, otherwise just identity at n = n_full).
+        # Same anchor ordering as A so B's rows line up with the other
+        # experiments; fall back to identity if no vision encoder is on disk.
         anchor_ref = vision[0] if vision else None
         if anchor_ref is not None:
             anchors = load_anchors(load_embedding(f"vision_{anchor_ref}"),
@@ -765,13 +968,12 @@ def exp_encoder_grid(
         gt = np.arange(X.shape[0])
         print(f"  [B] audio={aud}")
         T = recipe(X, Y, S, S, alpha=alpha_iv, eps=eps, lam=1.0)
-        t_ac_by_audio[aud] = T  # reused for c-transitive composition
+        t_ac_by_audio[aud] = T
         for scope, m in [("aggregate", evaluate(T, X, Y, gt, KCL["b"], seed=SEED)),
                          ("heldout",   evaluate_heldout(T, X, Y, gt, S, KCL["b"], seed=SEED))]:
             rows.append({"experiment": "b", "image_encoder": "—", "audio_encoder": aud,
                          "K": K_target, "alpha": alpha_iv, "scope": scope, **m})
 
-    # ---- Cross-modal grid: C-direct / D / Unsup / Text ------------------
     for img in vision:
         try:
             X_full = load_embedding(f"vision_{img}")
@@ -781,7 +983,6 @@ def exp_encoder_grid(
         X = X_full[anchors]
         ZV = ZV_full[anchors]
         ZA = ZA_full[anchors]
-        # Same-rows partition once per image (depends on X only).
         S_a = kmeans_stratified_indices(X, n=K_target,
                                         n_clusters=min(10, K_target), seed=SEED)
         gt = np.arange(X.shape[0])
@@ -800,10 +1001,6 @@ def exp_encoder_grid(
 
             cap_kw = {"Z_src_cap": ZV, "Z_tgt_cap": ZA}
 
-            # Transitive transport bridge: compose A's image->visual-caption plan
-            # with B's audio->audio-caption plan through the GT caption-row
-            # identity. Reuses the cached T_iv / T_ac from the within-modality
-            # loops above.
             T_iv = t_iv_by_image.get(img)
             T_ac = t_ac_by_audio.get(aud)
             if T_iv is not None and T_ac is not None:
@@ -811,15 +1008,15 @@ def exp_encoder_grid(
                 for scope, m in [("aggregate", evaluate(T, X, Y, gt, KCL["c-transitive"], seed=SEED, **cap_kw)),
                                  ("heldout",   evaluate_heldout(T, X, Y, gt, S_compare,
                                                                 KCL["c-transitive"], seed=SEED, **cap_kw))]:
-                    # Use heldout so this row aligns with d / unsup / text
-                    # held-out partitioning (rows outside S_a U S_b).
+                    # Force the held-out scope label so this row aligns with
+                    # d / unsup / text held-out partitioning (rows outside
+                    # S_a U S_b) rather than the within-modality scope name.
                     scope_out = "heldout" if scope == "heldout" else scope
                     rows.append({"experiment": "c-transitive",
                                  "image_encoder": img, "audio_encoder": aud,
                                  "K": K_target, "alpha": alpha_iv,
                                  "scope": scope_out, **m})
 
-            # Caption Distance FGW (D) at alpha=0.7
             T = caption_cost_recipe(X, Y, ZV, ZA, alpha=alpha_d, eps=eps)
             agg = evaluate(T, X, Y, gt, KCL["d"], seed=SEED, **cap_kw)
             hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["d"], seed=SEED, **cap_kw)
@@ -828,7 +1025,6 @@ def exp_encoder_grid(
             rows.append({"experiment": "d", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": alpha_d, "scope": "heldout", **hel})
 
-            # Unsup (pure entropic GW)
             T = pure_gw(X, Y, eps=eps)
             agg = evaluate(T, X, Y, gt, KCL["unsup"], seed=SEED, **cap_kw)
             hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["unsup"], seed=SEED, **cap_kw)
@@ -837,8 +1033,8 @@ def exp_encoder_grid(
             rows.append({"experiment": "unsup", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": 1.0, "scope": "heldout", **hel})
 
-            # Text-only (the plan itself is encoder-independent, but structural
-            # metrics depend on Y, so we evaluate per cell).
+            # Text-only: the plan itself is encoder-independent, but
+            # structural metrics depend on Y, so we evaluate per cell.
             T = text_only_retrieval(ZV, ZA)
             agg = evaluate(T, X, Y, gt, KCL["text"], seed=SEED, **cap_kw)
             hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["text"], seed=SEED, **cap_kw)
@@ -847,7 +1043,6 @@ def exp_encoder_grid(
             rows.append({"experiment": "text", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": float("nan"), "scope": "heldout", **hel})
 
-            # Random baseline: uniform row-stochastic plan, no information.
             T = random_baseline(X.shape[0], Y.shape[0], seed=SEED)
             agg = evaluate(T, X, Y, gt, KCL["random"], seed=SEED, **cap_kw)
             hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["random"], seed=SEED, **cap_kw)
@@ -856,7 +1051,23 @@ def exp_encoder_grid(
             rows.append({"experiment": "random", "image_encoder": img, "audio_encoder": aud,
                          "K": 0, "alpha": float("nan"), "scope": "heldout", **hel})
 
-            # Persist progressively so a crash doesn't lose hours of work.
+            T = procrustes_recipe(X, Y, S_a, S_a)
+            agg = evaluate(T, X, Y, gt, KCL["procrustes"], seed=SEED, **cap_kw)
+            hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["procrustes"], seed=SEED, **cap_kw)
+            rows.append({"experiment": "procrustes", "image_encoder": img, "audio_encoder": aud,
+                         "K": REUSABLE_K, "alpha": float("nan"), "scope": "aggregate", **agg})
+            rows.append({"experiment": "procrustes", "image_encoder": img, "audio_encoder": aud,
+                         "K": REUSABLE_K, "alpha": float("nan"), "scope": "heldout", **hel})
+
+            T = ridge_recipe(X, Y, S_a, S_a, lam=1.0)
+            agg = evaluate(T, X, Y, gt, KCL["direct"], seed=SEED, **cap_kw)
+            hel = evaluate_heldout(T, X, Y, gt, S_compare, KCL["direct"], seed=SEED, **cap_kw)
+            rows.append({"experiment": "direct", "image_encoder": img, "audio_encoder": aud,
+                         "K": REUSABLE_K, "alpha": float("nan"), "scope": "aggregate", **agg})
+            rows.append({"experiment": "direct", "image_encoder": img, "audio_encoder": aud,
+                         "K": REUSABLE_K, "alpha": float("nan"), "scope": "heldout", **hel})
+
+            # Persist after every cell so a crash doesn't lose hours of work.
             write_rows(rows)
 
     write_rows(rows)
@@ -868,8 +1079,8 @@ def main() -> None:
     ap.add_argument(
         "--exp",
         choices=["a", "b", "c-transitive",
-                 "d", "unsup", "text", "random",
-                 "grid", "all"],
+                 "d", "unsup", "text", "random", "procrustes", "direct",
+                 "cmcr", "grid", "all"],
         required=True,
     )
     ap.add_argument("--grid-images", type=str, default=None,
@@ -920,6 +1131,17 @@ def main() -> None:
     if args.exp in ("random", "all"):
         exp_random(args.image_encoder, args.audio_encoder,
                    out_suffix=args.out_suffix)
+    if args.exp in ("procrustes", "all"):
+        exp_procrustes(args.image_encoder, args.audio_encoder,
+                       K_grid=K_grid, out_suffix=args.out_suffix)
+    if args.exp in ("direct", "all"):
+        exp_direct(args.image_encoder, args.audio_encoder,
+                   K_grid=K_grid, out_suffix=args.out_suffix)
+    if args.exp in ("cmcr", "all"):
+        # Skips gracefully if embeddings/cmcr_*.npy are absent (i.e. until
+        # code/encode_cmcr.py has been run in the C-MCR env).
+        exp_cmcr(args.image_encoder, args.audio_encoder,
+                 out_suffix=args.out_suffix)
     if args.exp == "grid":
         image_only = (args.grid_images.split(",")
                       if args.grid_images else None)

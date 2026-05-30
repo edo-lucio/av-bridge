@@ -40,7 +40,6 @@ MANIFEST = DATA / "manifest.csv"
 DEFAULT_PLAN = RES / "exp_d" / "T_caption.npy"
 
 
-# ------------------------- data loaders -----------------------------------
 def load_manifest() -> list[dict]:
     rows: list[dict] = []
     with MANIFEST.open() as f:
@@ -55,7 +54,6 @@ def load_manifest() -> list[dict]:
     return rows
 
 
-# ------------------------- retrieval (mirrors infer.py) -------------------
 def softmax(x: np.ndarray) -> np.ndarray:
     x = x - x.max()
     e = np.exp(x)
@@ -80,17 +78,17 @@ def four_step_push(v_query: np.ndarray, X_anchors: np.ndarray, T: np.ndarray,
 
 
 def retrieve(query_idx: int, anchors: np.ndarray, plan: np.ndarray,
-             top_k: int, query_top_k: int, query_temp: float) -> tuple[np.ndarray, np.ndarray]:
+             top_k: int, query_top_k: int, query_temp: float,
+             suppress_self: bool = False) -> tuple[np.ndarray, np.ndarray]:
     w = four_step_push(anchors[query_idx], anchors, plan,
                        query_top_k=query_top_k, query_temp=query_temp)
-    # Drop self-match when query and target index spaces are the same.
     w = w.copy()
-    w[query_idx] = -np.inf
+    if suppress_self:
+        w[query_idx] = -np.inf
     order = np.argsort(-w)[:top_k]
     return order, w[order]
 
 
-# ------------------------- rendering --------------------------------------
 def _truncate(s: str, n: int = 140) -> str:
     if len(s) <= n:
         return s
@@ -139,7 +137,6 @@ def _render_spectrogram(ax, path: Path, title: str = "",
         ax.text(0.5, 0.5, f"<audio\nunavailable>\n{exc.__class__.__name__}",
                 ha="center", va="center", fontsize=8, transform=ax.transAxes)
     ax.set_xticks([]); ax.set_yticks([])
-    # Spectrograms are dark — overlay with a white-on-black label.
     _overlay_label(ax, title, dark_bg=True)
     if border:
         for spine in ax.spines.values():
@@ -158,34 +155,53 @@ def _render_captions(ax, captions: list[str], n_show: int = 2) -> None:
             transform=ax.transAxes, wrap=True)
 
 
-# ------------------------- main figure ------------------------------------
+def _render_dual_captions(ax, vcaps: list[str], acaps: list[str],
+                          n_show: int = 1) -> None:
+    """Both modality captions stacked with labels."""
+    ax.axis("off")
+    parts = []
+    for c in vcaps[:n_show]:
+        parts.append(("visual", textwrap.fill(_truncate(c, 140), width=40)))
+    for c in acaps[:n_show]:
+        parts.append(("audio",  textwrap.fill(_truncate(c, 140), width=40)))
+    y = 1.0
+    for tag, body in parts:
+        ax.text(0.0, y, tag, ha="left", va="top",
+                fontsize=7.5, fontweight="bold",
+                color="tab:blue" if tag == "visual" else "tab:red",
+                transform=ax.transAxes)
+        ax.text(0.16, y, body, ha="left", va="top",
+                fontsize=7.5, transform=ax.transAxes)
+        y -= 0.50
+
+
 def make_figure(query_clip: str, manifest: list[dict],
                 X_image: np.ndarray, Y_audio: np.ndarray, plan: np.ndarray,
                 top_k: int, query_top_k: int, query_temp: float,
                 title: str, out: Path,
-                method_label: str | None = None) -> None:
+                method_label: str | None = None,
+                suppress_self: bool = False) -> None:
     ids = [m["clip_id"] for m in manifest]
     if query_clip not in ids:
         raise KeyError(f"clip_id {query_clip!r} not in manifest")
     q_idx = ids.index(query_clip)
     q = manifest[q_idx]
 
-    # Image -> audio retrieval
     i2a_idx, i2a_scores = retrieve(
         q_idx, X_image, plan, top_k, query_top_k, query_temp,
+        suppress_self=suppress_self,
     )
 
-    # Audio -> image retrieval via the transposed plan.
     a2i_idx, a2i_scores = retrieve(
         q_idx, Y_audio, plan.T, top_k, query_top_k, query_temp,
+        suppress_self=suppress_self,
     )
 
-    n_cols = 1 + top_k  # query + K results
-    fig = plt.figure(figsize=(3.4 * n_cols, 9.4))
-    # Seven rows: [header1, viz1, caption1, separator, header2, viz2, caption2]
+    n_cols = 1 + top_k
+    fig = plt.figure(figsize=(3.4 * n_cols, 10.4))
     gs = fig.add_gridspec(
         nrows=7, ncols=n_cols,
-        height_ratios=[0.35, 3.0, 1.3, 0.5, 0.35, 3.0, 1.3],
+        height_ratios=[0.35, 3.0, 1.9, 0.5, 0.35, 3.0, 1.9],
         hspace=0.18, wspace=0.18,
         left=0.04, right=0.99, top=0.97, bottom=0.05,
     )
@@ -196,41 +212,44 @@ def make_figure(query_clip: str, manifest: list[dict],
         hax.text(0.5, 0.5, txt, ha="center", va="center",
                  fontsize=13, fontweight="bold", transform=hax.transAxes)
 
-    # ---- Image -> Audio panel ----
     method_str = f"  ·  {method_label}" if method_label else ""
     _header(0, f"Image → Audio   (query clip {query_clip}){method_str}")
 
     ax = fig.add_subplot(gs[1, 0])
     _render_image(ax, q["frame_path"], title="query (image)", border="tab:blue")
     cap_ax = fig.add_subplot(gs[2, 0])
-    _render_captions(cap_ax, q["visual_captions"])
+    _render_dual_captions(cap_ax, q["visual_captions"], q["audio_captions"])
 
     for k, (tgt, score) in enumerate(zip(i2a_idx, i2a_scores), start=1):
         item = manifest[int(tgt)]
+        is_gt = (int(tgt) == q_idx)
+        tag = "  [GT]" if is_gt else ""
         ax = fig.add_subplot(gs[1, k])
         _render_spectrogram(ax, item["audio_path"],
-                            title=f"top-{k}  clip {item['clip_id']}\nscore={score:.4f}")
+                            title=f"top-{k}  clip {item['clip_id']}{tag}\nscore={score:.4f}",
+                            border="tab:green" if is_gt else None)
         cap_ax = fig.add_subplot(gs[2, k])
-        _render_captions(cap_ax, item["audio_captions"])
+        _render_dual_captions(cap_ax, item["visual_captions"], item["audio_captions"])
 
-    # ---- Audio -> Image panel ----
     _header(4, f"Audio → Image   (query clip {query_clip}){method_str}")
 
     ax = fig.add_subplot(gs[5, 0])
     _render_spectrogram(ax, q["audio_path"],
                         title="query (audio)", border="tab:blue")
     cap_ax = fig.add_subplot(gs[6, 0])
-    _render_captions(cap_ax, q["audio_captions"])
+    _render_dual_captions(cap_ax, q["visual_captions"], q["audio_captions"])
 
     for k, (tgt, score) in enumerate(zip(a2i_idx, a2i_scores), start=1):
         item = manifest[int(tgt)]
+        is_gt = (int(tgt) == q_idx)
+        tag = "  [GT]" if is_gt else ""
         ax = fig.add_subplot(gs[5, k])
         _render_image(ax, item["frame_path"],
-                      title=f"top-{k}  clip {item['clip_id']}\nscore={score:.4f}")
+                      title=f"top-{k}  clip {item['clip_id']}{tag}\nscore={score:.4f}",
+                      border="tab:green" if is_gt else None)
         cap_ax = fig.add_subplot(gs[6, k])
-        _render_captions(cap_ax, item["visual_captions"])
+        _render_dual_captions(cap_ax, item["visual_captions"], item["audio_captions"])
 
-    # Plan metadata at the bottom edge.
     fig.text(0.5, 0.012, title, ha="center", va="bottom",
              fontsize=8, color="dimgray")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -239,7 +258,6 @@ def make_figure(query_clip: str, manifest: list[dict],
     print(f"[qual] wrote {out}")
 
 
-# ------------------------- CLI --------------------------------------------
 def main() -> None:
     ap = argparse.ArgumentParser(
         description="Qualitative figure: image <-> audio retrieval with captions."
@@ -275,6 +293,10 @@ def main() -> None:
                     help="Seed for --random-plan. Use the same seed across "
                          "query clips so a single random permutation is "
                          "compared like a real saved plan.")
+    ap.add_argument("--suppress-self", action="store_true",
+                    help="Drop the self-match before picking top-k. Default "
+                         "off so the figure can show whether the plan "
+                         "actually identifies the partner clip (GT highlight).")
     args = ap.parse_args()
 
     manifest = load_manifest()
@@ -290,7 +312,7 @@ def main() -> None:
             plan[np.arange(n), perm] = 1.0 / n
         elif args.random_plan == "uniform":
             plan = np.full((n, n), 1.0 / (n * n), dtype=np.float64)
-        else:  # sinkhorn on a random cost
+        else:
             from algorithms import sinkhorn
             M = rng.standard_normal((n, n)).astype(np.float64)
             M = M - M.min()
@@ -318,7 +340,8 @@ def main() -> None:
                 query_top_k=args.query_top_k,
                 query_temp=args.query_temp,
                 title=title, out=out,
-                method_label=args.method_label)
+                method_label=args.method_label,
+                suppress_self=args.suppress_self)
 
 
 if __name__ == "__main__":
