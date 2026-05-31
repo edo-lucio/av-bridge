@@ -62,19 +62,14 @@ PAIRS = {
     },
 }
 
-# Special key ``__precision_10`` is computed inline as R@10 / 10 ---
-# instance precision@10 under single-ground-truth-per-query.
 METRICS = [
     ("R@10",              "$R@10$",                True),
     ("cat_precision_10",  "Cat-prec@10",           True),
-    ("__precision_10",    "Prec@10 (instance)",    True),
+    ("pearson_r",         "Pearson $r$",           False),
 ]
 
 
 def _resolve(row: pd.Series, metric: str) -> float:
-    if metric == "__precision_10":
-        r10 = float(row.get("R@10", float("nan")))
-        return r10 / 10.0 if np.isfinite(r10) else float("nan")
     return float(row.get(metric, float("nan")))
 
 
